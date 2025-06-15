@@ -17,7 +17,6 @@ docs/
 │   ├── result.md                  # Result + UiState 패턴
 │   ├── error.md                   # Failure/예외 처리 전략
 │   ├── naming.md                  # 전반 네이밍 규칙
-│   ├── di.md                      # 의존성 주입 설계 가이드
 │   ├── route.md                   # 라우팅 설계 가이드
 │
 ├── ui/
@@ -35,10 +34,7 @@ docs/
 │   ├── dto.md                     # DTO 설계 기준
 │   ├── mapper.md                  # DTO ↔ Model 변환 기준
 │   ├── firebase_model.md          # Firebase 모델 구조 정의
-│
-├── collab/
-│   ├── ai.md                      # AI 협업 방식 (ChatGPT 등)
-│   ├── review.md                  # 리뷰 체크리스트
+
 
 ```
 
