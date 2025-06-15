@@ -23,10 +23,9 @@ docs/
 ├── ui/
 │   ├── component.md               # 공통 컴포넌트 작성 가이드
 │   ├── screen.md                  # Screen 설계 가이드
-│   ├── root.md                    # Root 역할 정리
 │   ├── state.md                   # 상태 객체 작성 가이드
-│   ├── viewmodel.md               # ViewModel 설계 가이드 (Provider 기반)
-│   ├── view.md                    # View 설계 가이드 (MVVM 패턴)
+│   ├── viewmodel.md               # ViewModel 설계 가이드 
+│   ├── view.md                    # View 설계 가이드 
 │
 ├── logic/
 │   ├── repository.md              # Repository 설계 및 메서드 규칙
