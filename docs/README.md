@@ -9,7 +9,7 @@
 docs/
 ├── overview/
 │   ├── project.md                 # 프로젝트 소개 / 개요
-│   ├── roadmap.md                 # MVP + 확장 기능 정리
+│   ├── roadmap.md                 # MVVM + 확장 기능 정리
 │
 ├── arch/
 │   ├── folder.md                  # 기능 기반 폴더 구조
@@ -35,7 +35,6 @@ docs/
 │   ├── mapper.md                  # DTO ↔ Model 변환 기준
 │   ├── firebase_model.md          # Firebase 모델 구조 정의
 
-
 ```
 
 ---
@@ -51,10 +50,8 @@ docs/
 | `arch/result.md`      | Result 패턴 소개                           |
 | `arch/error.md`       | 예외 → Failure 매핑 전략, 디버깅 유틸             |
 | `arch/naming.md`      | 파일명, 클래스명, 접두어 규칙 총정리                  |
-| `arch/di.md`          | 의존성 주입 설계, Provider 생명주기 관리            |
 | `arch/route.md`       | 라우팅 구조, GoRouter 설정 및 네비게이션 방식        |
-| `ui/screen.md`        | 화면 컴포넌트 설계 가이드, onAction 전달 방식         |
-| `ui/root.md`          | Root의 context/VM 연결 및 생명주기 처리 등        |
+| `ui/screen.md`        | 화면별 ChangeNotifierProvider 설정 가이드        |
 | `ui/state.md`         | 상태 객체 작성 및 freezed 사용법               |
 | `ui/viewmodel.md`     | ViewModel 설계, Provider 기반 상태 관리         |
 | `ui/view.md`          | View 설계, MVVM 패턴 적용 가이드               |
@@ -71,6 +68,9 @@ docs/
 
 # ✅ 문서 구조 설계 기준
 
-- **파일명은 최대 2단어**, 단순하고 명확하게
++ - **한 파일 = 하나의 목적만** 다룸 (예: viewmodel 가이드는 viewmodel만)
++ - **폴더는 4개로 고정**: overview, arch, ui, logic,
++ - **Provider + MVVM + Clean Architecture** 구조에 맞춘 문서화
++ - **AI가 빠르게 맥락 파악** 가능하도록 구조화
 
 ---
