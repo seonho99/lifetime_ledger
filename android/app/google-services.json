@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "572681652958",
+    "project_id": "lifetime-ledger",
+    "storage_bucket": "lifetime-ledger.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:572681652958:android:825aed8009a9beaf24d04f",
+        "android_client_info": {
+          "package_name": "com.lifetime_ledger_seonho.lifetime_ledger"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCDq0hPkm8p-qz3Z4TkaMt9AkCTfNjklD8"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
