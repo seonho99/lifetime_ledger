@@ -1,5 +1,10 @@
 # 🗂️️ docs/ 폴더 구조
 
++ # Lifetime Ledger - 가계부 앱 문서
++ **아키텍처**: MVVM + Clean Architecture
++ **상태관리**: Provider 패턴
++ **프로젝트**: 개인 재정 관리 앱
+
 ```
 docs/
 ├── overview/
@@ -20,8 +25,8 @@ docs/
 │   ├── screen.md                  # Screen 설계 가이드
 │   ├── root.md                    # Root 역할 정리
 │   ├── state.md                   # 상태 객체 작성 가이드
-│   ├── notifier.md                # Notifier 설계 가이드
-│   ├── action.md                  # Action 클래스 설계 규칙
+│   ├── viewmodel.md               # ViewModel 설계 가이드 (Provider 기반)
+│   ├── view.md                    # View 설계 가이드 (MVVM 패턴)
 │
 ├── logic/
 │   ├── repository.md              # Repository 설계 및 메서드 규칙
@@ -56,26 +61,21 @@ docs/
 | `ui/screen.md`        | 화면 컴포넌트 설계 가이드, onAction 전달 방식         |
 | `ui/root.md`          | Root의 context/VM 연결 및 생명주기 처리 등        |
 | `ui/state.md`         | 상태 객체 작성 및 freezed 사용법               |
-| `ui/notifier.md`      | Notifier 설계, AsyncValue 기반 상태 관리       |
+| `ui/viewmodel.md`     | ViewModel 설계, Provider 기반 상태 관리         |
+| `ui/view.md`          | View 설계, MVVM 패턴 적용 가이드               |
 | `ui/component.md`     | 공통 위젯 구조, width/height 처리 원칙           |
-| `ui/action.md`        | onTap/onChange 액션 분류 및 sealed class 방식 |
 | `logic/repository.md` | Repository interface/impl 규칙 및 메서드 접두사 |
 | `logic/datasource.md` | DataSource 인터페이스/Mock/Impl 규칙, Mock 상태 관리 |
-| `logic/usecase.md`    | UseCase의 역할, Result → AsyncValue 흐름 처리    |
+| `logic/usecase.md`    | UseCase의 역할, Result → ViewModel 흐름 처리     |
 | `logic/model.md`      | Model(Entity) class 설계 원칙 및 생성 규칙      |
 | `logic/dto.md`        | Dto 설계 원칙 및 생성 규칙                      |
 | `logic/mapper.md`     | Mapper 설계 원칙 및 생성 규칙                   |
 | `logic/firebase_model.md` | Firebase 컬렉션 구조 및 DTO 정의             |
-| `collab/ai.md`        | ChatGPT 활용 가이드, prompt 작성 요령 포함        |
-| `collab/review.md`    | AI + 인간 리뷰 체크리스트 (구조, 네이밍, 처리 방식 등)    |
 
 ---
 
 # ✅ 문서 구조 설계 기준
 
 - **파일명은 최대 2단어**, 단순하고 명확하게
-- **한 파일 = 하나의 목적만** 다룸 (예: action 가이드는 UI가 아닌 action만)
-- **폴더는 5개로 고정**: overview, arch, ui, logic, collab
-- **코드래빗 등 AI가 빠르게 맥락 파악** 가능하도록 구조화
 
 ---
