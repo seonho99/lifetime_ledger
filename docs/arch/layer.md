@@ -30,7 +30,7 @@ MainActivity -> [MultiProvider] -> Screen -> [ChangeNotifierProvider] -> View ->
 
 ### 3. Provider 통합 방식
 
-#### 전역 Provider 설정 (main.dart)
+#### 전역 Provider 설정 (main.dart) - 프로덕션 레벨
 ```dart
 void main() {
   runApp(const MyApp());
@@ -43,30 +43,145 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MultiProvider(
       providers: [
-        // Data Layer - Repository 주입
-        Provider<TransactionRepository>(
-          create: (context) => TransactionRepositoryImpl(
-            remoteDataSource: TransactionRemoteDataSourceImpl(),
-            localDataSource: TransactionLocalDataSourceImpl(),
+        // Core Services
+        Provider<StorageService>(
+          create: (context) => StorageServiceImpl(),
+        ),
+
+        Provider<ApiService>(
+          create: (context) => ApiServiceImpl(),
+        ),
+
+        Provider<NetworkInfo>(
+          create: (context) => NetworkInfoImpl(),
+        ),
+
+        // Data Layer - DataSources
+        Provider<TransactionRemoteDataSource>(
+          create: (context) => TransactionRemoteDataSourceImpl(
+            apiService: context.read<ApiService>(),
           ),
         ),
-        
-        // Domain Layer - UseCase 주입  
+
+        Provider<TransactionLocalDataSource>(
+          create: (context) => TransactionLocalDataSourceImpl(
+            storageService: context.read<StorageService>(),
+          ),
+        ),
+
+        Provider<CategoryRemoteDataSource>(
+          create: (context) => CategoryRemoteDataSourceImpl(
+            apiService: context.read<ApiService>(),
+          ),
+        ),
+
+        Provider<CategoryLocalDataSource>(
+          create: (context) => CategoryLocalDataSourceImpl(
+            storageService: context.read<StorageService>(),
+          ),
+        ),
+
+        // Data Layer - Repositories
+        Provider<TransactionRepository>(
+          create: (context) => TransactionRepositoryImpl(
+            remoteDataSource: context.read<TransactionRemoteDataSource>(),
+            localDataSource: context.read<TransactionLocalDataSource>(),
+            networkInfo: context.read<NetworkInfo>(),
+          ),
+        ),
+
+        Provider<CategoryRepository>(
+          create: (context) => CategoryRepositoryImpl(
+            remoteDataSource: context.read<CategoryRemoteDataSource>(),
+            localDataSource: context.read<CategoryLocalDataSource>(),
+            networkInfo: context.read<NetworkInfo>(),
+          ),
+        ),
+
+        Provider<BudgetRepository>(
+          create: (context) => BudgetRepositoryImpl(
+            remoteDataSource: context.read<BudgetRemoteDataSource>(),
+            localDataSource: context.read<BudgetLocalDataSource>(),
+          ),
+        ),
+
+        // Domain Layer - UseCases (Transaction)
         Provider<GetTransactionsUseCase>(
           create: (context) => GetTransactionsUseCase(
             repository: context.read<TransactionRepository>(),
           ),
         ),
-        
+
+        Provider<GetTransactionByIdUseCase>(
+          create: (context) => GetTransactionByIdUseCase(
+            repository: context.read<TransactionRepository>(),
+          ),
+        ),
+
         Provider<AddTransactionUseCase>(
           create: (context) => AddTransactionUseCase(
             repository: context.read<TransactionRepository>(),
           ),
         ),
+
+        Provider<UpdateTransactionUseCase>(
+          create: (context) => UpdateTransactionUseCase(
+            repository: context.read<TransactionRepository>(),
+          ),
+        ),
+
+        Provider<DeleteTransactionUseCase>(
+          create: (context) => DeleteTransactionUseCase(
+            repository: context.read<TransactionRepository>(),
+          ),
+        ),
+
+        // Domain Layer - UseCases (Category)
+        Provider<GetCategoriesUseCase>(
+          create: (context) => GetCategoriesUseCase(
+            repository: context.read<CategoryRepository>(),
+          ),
+        ),
+
+        Provider<AddCategoryUseCase>(
+          create: (context) => AddCategoryUseCase(
+            repository: context.read<CategoryRepository>(),
+          ),
+        ),
+
+        // Domain Layer - UseCases (Budget)
+        Provider<GetBudgetsUseCase>(
+          create: (context) => GetBudgetsUseCase(
+            repository: context.read<BudgetRepository>(),
+          ),
+        ),
+
+        Provider<CreateBudgetUseCase>(
+          create: (context) => CreateBudgetUseCase(
+            repository: context.read<BudgetRepository>(),
+          ),
+        ),
+
+        // Domain Layer - UseCases (Statistics)
+        Provider<GetExpensesByCategoryUseCase>(
+          create: (context) => GetExpensesByCategoryUseCase(
+            transactionRepository: context.read<TransactionRepository>(),
+            categoryRepository: context.read<CategoryRepository>(),
+          ),
+        ),
+
+        Provider<GetMonthlyReportUseCase>(
+          create: (context) => GetMonthlyReportUseCase(
+            transactionRepository: context.read<TransactionRepository>(),
+          ),
+        ),
       ],
       child: MaterialApp(
         title: 'Lifetime Ledger',
-        home: const TransactionScreen(),
+        theme: AppTheme.lightTheme,
+        darkTheme: AppTheme.darkTheme,
+        initialRoute: '/',
+        onGenerateRoute: AppRouter.generateRoute,
       ),
     );
   }
@@ -145,7 +260,8 @@ sealed class TransactionState with _$TransactionState {
 }
 ```
 
-#### ViewModel 구현
+#### ViewModel 구현 (아키텍처 통합)
+
 ```dart
 class TransactionViewModel extends ChangeNotifier {
   final GetTransactionsUseCase _getTransactionsUseCase;
@@ -157,28 +273,21 @@ class TransactionViewModel extends ChangeNotifier {
   }) : _getTransactionsUseCase = getTransactionsUseCase,
        _addTransactionUseCase = addTransactionUseCase;
 
-  // State 객체로 상태 관리
-  TransactionState _state = TransactionState(
-    transactions: [],
-    isLoading: false,
-  );
+  // State 객체로 상태 관리 (상세 구현은 state.md 참조)
+  TransactionState _state = TransactionState.initial();
 
-  // State 접근자
   TransactionState get state => _state;
-  
-  // 편의 Getters
   List<Transaction> get transactions => _state.transactions;
   bool get isLoading => _state.isLoading;
-  String? get errorMessage => _state.errorMessage;
-  bool get hasError => _state.errorMessage != null;
+  bool get hasError => _state.hasError;
 
-  // 상태 업데이트
+  // 상태 업데이트 (Provider 알림)
   void _updateState(TransactionState newState) {
     _state = newState;
-    notifyListeners(); // Provider에게 변경 알림
+    notifyListeners();
   }
 
-  // 비즈니스 로직
+  // 비즈니스 로직 (간단한 에러 처리)
   Future<void> loadTransactions() async {
     _updateState(_state.copyWith(isLoading: true, errorMessage: null));
     
@@ -186,18 +295,22 @@ class TransactionViewModel extends ChangeNotifier {
     
     switch (result) {
       case Success(data: final transactions):
-        _updateState(_state.copyWith(
-          transactions: transactions,
-          isLoading: false,
-        ));
+        _updateState(_state.copyWith(transactions: transactions, isLoading: false));
       case Error(failure: final failure):
-        _updateState(_state.copyWith(
-          isLoading: false,
-          errorMessage: failure.message,
-        ));
+        _updateState(_state.copyWith(isLoading: false, errorMessage: failure.message));
     }
   }
+  
+  // 다른 CRUD 메서드들...
+  // 상세 구현은 관련 가이드 문서 참조
 }
+```
+
+> **구현 세부사항 참조**:
+> - **State 설계**: `state.md` 참조
+> - **Result 패턴**: `result.md` 참조
+> - **에러 처리**: `error.md` 참조
+> - **Provider 사용법**: `provider.md` 참조
 ```
 
 ### 5. 레이어 간 데이터 흐름

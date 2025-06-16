@@ -73,7 +73,7 @@ class RemoteDataSource {
       final transactions = response.data
           .map<TransactionDto>((json) => TransactionDto.fromJson(json))
           .toList();
-      
+
       return Success(transactions);
     } on DioException catch (e) {
       if (e.type == DioExceptionType.connectionTimeout) {
@@ -105,7 +105,7 @@ class TransactionRepositoryImpl implements TransactionRepository {
   Future<Result<List<Transaction>>> getTransactions() async {
     try {
       final result = await remoteDataSource.getTransactions();
-      
+
       return result.fold(
         onSuccess: (dtos) {
           final transactions = dtos.map((dto) => dto.toEntity()).toList();
@@ -137,7 +137,9 @@ class GetTransactionsUseCase {
 }
 ```
 
-### 4. ViewModel 레벨 (Provider 패턴)
+### 4. ViewModel 레벨 (Provider 패턴) - 에러 처리 전문
+
+#### 기본 에러 처리 패턴
 ```dart
 class TransactionViewModel extends ChangeNotifier {
   final GetTransactionsUseCase getTransactionsUseCase;
@@ -165,12 +167,13 @@ class TransactionViewModel extends ChangeNotifier {
         _setLoading(false);
       },
       error: (failure) {
-        _handleError(failure);
+        _handleError(failure); // 핵심: 에러 타입별 처리
         _setLoading(false);
       },
     );
   }
 
+  // 에러 타입별 상세 처리 (핵심 포인트)
   void _handleError(Failure failure) {
     switch (failure.runtimeType) {
       case NetworkFailure:
@@ -182,16 +185,15 @@ class TransactionViewModel extends ChangeNotifier {
       case ValidationFailure:
         _setError(failure.message);
         break;
+      case CacheFailure:
+        _setError('로컬 데이터 접근에 실패했습니다.');
+        break;
       default:
         _setError('알 수 없는 오류가 발생했습니다.');
     }
   }
 
-  void _setLoading(bool loading) {
-    _isLoading = loading;
-    notifyListeners();
-  }
-
+  // 에러 상태 관리
   void _setError(String message) {
     _errorMessage = message;
     notifyListeners();
@@ -202,6 +204,12 @@ class TransactionViewModel extends ChangeNotifier {
     notifyListeners();
   }
 
+  void _setLoading(bool loading) {
+    _isLoading = loading;
+    notifyListeners();
+  }
+
+  // 에러 복구 메서드들
   void clearError() {
     _clearError();
   }
@@ -213,7 +221,117 @@ class TransactionViewModel extends ChangeNotifier {
 }
 ```
 
+#### 고급 에러 처리 패턴
+
+##### 1. 에러 컨텍스트별 처리
+```dart
+class TransactionViewModel extends ChangeNotifier {
+  String? _lastAction; // 마지막 실행 액션 추적
+
+  Future<void> loadTransactions() async {
+    _lastAction = 'loadTransactions';
+    // ... 로직
+    
+    result.when(
+      success: (transactions) => _handleSuccess(transactions),
+      error: (failure) => _handleErrorWithContext(failure, 'load'),
+    );
+  }
+
+  Future<void> addTransaction(Transaction transaction) async {
+    _lastAction = 'addTransaction';
+    // ... 로직
+    
+    result.when(
+      success: (_) => _handleSuccess(null),
+      error: (failure) => _handleErrorWithContext(failure, 'add'),
+    );
+  }
+
+  void _handleErrorWithContext(Failure failure, String action) {
+    String message = '';
+    
+    switch (failure.runtimeType) {
+      case NetworkFailure:
+        message = action == 'load' 
+          ? '거래 내역을 불러오는 중 네트워크 오류가 발생했습니다.'
+          : '거래 저장 중 네트워크 오류가 발생했습니다.';
+        break;
+      case ValidationFailure:
+        message = '입력 정보를 확인해주세요: ${failure.message}';
+        break;
+      default:
+        message = '$action 작업 중 오류가 발생했습니다.';
+    }
+    
+    _setError(message);
+  }
+}
+```
+
+##### 2. 재시도 로직이 있는 에러 처리
+```dart
+class TransactionViewModel extends ChangeNotifier {
+  int _retryCount = 0;
+  static const int maxRetries = 3;
+
+  Future<void> loadTransactionsWithRetry() async {
+    _retryCount = 0;
+    await _performLoadWithRetry();
+  }
+
+  Future<void> _performLoadWithRetry() async {
+    _setLoading(true);
+    
+    final result = await getTransactionsUseCase();
+    
+    result.when(
+      success: (transactions) {
+        _transactions = transactions;
+        _retryCount = 0; // 성공 시 재시도 카운트 리셋
+        _setLoading(false);
+      },
+      error: (failure) {
+        if (_shouldRetry(failure) && _retryCount < maxRetries) {
+          _retryCount++;
+          await Future.delayed(Duration(seconds: _retryCount * 2)); // 지수 백오프
+          await _performLoadWithRetry(); // 재시도
+        } else {
+          _handleFinalError(failure);
+          _setLoading(false);
+        }
+      },
+    );
+  }
+
+  bool _shouldRetry(Failure failure) {
+    return failure is NetworkFailure || failure is ServerFailure;
+  }
+
+  void _handleFinalError(Failure failure) {
+    if (_retryCount >= maxRetries) {
+      _setError('${_getErrorMessage(failure)} (${maxRetries}회 재시도 후 실패)');
+    } else {
+      _handleError(failure);
+    }
+  }
+
+  String _getErrorMessage(Failure failure) {
+    switch (failure.runtimeType) {
+      case NetworkFailure:
+        return '네트워크 오류가 발생했습니다.';
+      case ServerFailure:
+        return '서버 오류가 발생했습니다.';
+      default:
+        return '오류가 발생했습니다.';
+    }
+  }
+}
+```
+
 ### 5. UI 레벨에서 에러 처리
+
+#### 에러 표시 위젯
 ```dart
 class TransactionScreen extends StatelessWidget {
   @override
@@ -230,11 +348,11 @@ class TransactionScreen extends StatelessWidget {
               children: [
                 // 메인 컨텐츠
                 _buildMainContent(viewModel),
-                
+
                 // 에러 오버레이
                 if (viewModel.hasError)
                   _buildErrorOverlay(context, viewModel),
-                
+
                 // 로딩 오버레이
                 if (viewModel.isLoading)
                   _buildLoadingOverlay(),
@@ -339,7 +457,7 @@ class TransactionScreen extends StatelessWidget {
 ```dart
 mixin ErrorHandlerMixin on ChangeNotifier {
   String? _errorMessage;
-  
+
   String? get errorMessage => _errorMessage;
   bool get hasError => _errorMessage != null;
 
@@ -376,7 +494,7 @@ class TransactionViewModel extends ChangeNotifier with ErrorHandlerMixin {
 
   Future<void> loadTransactions() async {
     final result = await getTransactionsUseCase();
-    
+
     result.when(
       success: (transactions) => _transactions = transactions,
       error: (failure) => handleError(failure), // Mixin 사용
@@ -391,10 +509,10 @@ class GlobalErrorHandler {
   static void handle(Failure failure) {
     // 로깅
     print('Error: ${failure.message}');
-    
+
     // 에러 리포팅 (Crashlytics 등)
     // FirebaseCrashlytics.instance.recordError(failure, null);
-    
+
     // 사용자에게 알림 (필요시)
     if (failure is NetworkFailure) {
       // 네트워크 에러 특별 처리
