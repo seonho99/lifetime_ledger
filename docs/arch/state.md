@@ -1,489 +1,384 @@
-# 상태 관리
+# State 객체 설계 가이드
 
-## Provider 기반 상태 관리 개요
+## freezed 3.0 기반 상태 관리
 
-Provider 패턴에서는 ChangeNotifier를 사용하여 상태를 관리합니다.
-상태는 불변 객체(freezed)로 정의하고, ViewModel에서 상태 변경을 관리합니다.
+### 1. 기본 State 구조 (freezed 3.0 문법)
 
-## 상태 객체 정의 (freezed 3.0)
-
-### 기본 State 구조
 ```dart
 @freezed
-class TransactionState with _$TransactionState {
+sealed class TransactionState with _$TransactionState {
   TransactionState({
     required this.transactions,
     required this.isLoading,
     this.errorMessage,
+    this.selectedCategory,
+    this.searchQuery,
   });
 
   final List<Transaction> transactions;
   final bool isLoading;
   final String? errorMessage;
+  final String? selectedCategory;
+  final String? searchQuery;
 }
+```
 
-// State 확장 메서드
+### 2. State Extension 메서드 패턴
+
+#### 기본 상태 확인 Extension
+```dart
 extension TransactionStateX on TransactionState {
+  // 에러 상태
   bool get hasError => errorMessage != null;
-  bool get isEmpty => transactions.isEmpty;
-  int get transactionCount => transactions.length;
   
-  // 계산된 속성들
+  // 빈 상태
+  bool get isEmpty => transactions.isEmpty && !isLoading;
+  
+  // 데이터 상태
+  bool get hasData => transactions.isNotEmpty;
+  
+  // 필터링 상태
+  bool get isFiltered => selectedCategory != null || 
+                        (searchQuery != null && searchQuery!.isNotEmpty);
+  
+  // 거래 개수
+  int get transactionCount => transactions.length;
+}
+```
+
+#### 계산된 속성 Extension
+```dart
+extension TransactionStateCalculations on TransactionState {
+  // 총 수입
   double get totalIncome => transactions
       .where((t) => t.type == TransactionType.income)
       .map((t) => t.amount)
       .fold(0.0, (sum, amount) => sum + amount);
       
+  // 총 지출  
   double get totalExpense => transactions
       .where((t) => t.type == TransactionType.expense)
       .map((t) => t.amount)
       .fold(0.0, (sum, amount) => sum + amount);
       
+  // 잔액
   double get balance => totalIncome - totalExpense;
+  
+  // 카테고리별 지출
+  Map<String, double> get expensesByCategory {
+    final Map<String, double> result = {};
+    for (final transaction in transactions) {
+      if (transaction.type == TransactionType.expense) {
+        result[transaction.category] = 
+            (result[transaction.category] ?? 0) + transaction.amount;
+      }
+    }
+    return result;
+  }
+  
+  // 월별 거래
+  List<Transaction> get currentMonthTransactions {
+    final now = DateTime.now();
+    return transactions.where((t) => 
+      t.date.year == now.year && t.date.month == now.month
+    ).toList();
+  }
 }
 ```
 
-### 상태 헬퍼 메서드
+### 3. State 헬퍼 메서드
+
 ```dart
 extension TransactionStateHelpers on TransactionState {
+  // 초기 상태
   static TransactionState initial() {
     return TransactionState(
       transactions: [],
       isLoading: false,
       errorMessage: null,
+      selectedCategory: null,
+      searchQuery: null,
     );
   }
   
-  static TransactionState loading() {
+  // 로딩 상태
+  static TransactionState loading({
+    List<Transaction>? currentTransactions,
+  }) {
     return TransactionState(
-      transactions: [],
+      transactions: currentTransactions ?? [],
       isLoading: true,
       errorMessage: null,
     );
   }
   
-  static TransactionState error(String message) {
+  // 에러 상태
+  static TransactionState error(
+    String message, {
+    List<Transaction>? currentTransactions,
+  }) {
     return TransactionState(
-      transactions: [],
+      transactions: currentTransactions ?? [],
       isLoading: false,
       errorMessage: message,
     );
   }
+  
+  // 성공 상태
+  static TransactionState success(List<Transaction> transactions) {
+    return TransactionState(
+      transactions: transactions,
+      isLoading: false,
+      errorMessage: null,
+    );
+  }
 }
 ```
 
-## ViewModel에서 상태 관리
+### 4. 복잡한 State 구조 예시
 
-### 기본 ViewModel 패턴
+#### 페이지네이션이 있는 State
+```dart
+@freezed
+sealed class TransactionListState with _$TransactionListState {
+  TransactionListState({
+    required this.transactions,
+    required this.isLoading,
+    required this.isLoadingMore,
+    required this.hasMore,
+    required this.currentPage,
+    this.errorMessage,
+    this.filter,
+  });
+
+  final List<Transaction> transactions;
+  final bool isLoading;           // 초기 로딩
+  final bool isLoadingMore;       // 추가 로딩  
+  final bool hasMore;             // 더 가져올 데이터 있는지
+  final int currentPage;          // 현재 페이지
+  final String? errorMessage;
+  final TransactionFilter? filter; // 필터 객체
+}
+
+extension TransactionListStateX on TransactionListState {
+  bool get hasError => errorMessage != null;
+  bool get isEmpty => transactions.isEmpty && !isLoading;
+  bool get canLoadMore => hasMore && !isLoadingMore && !hasError;
+  
+  // 필터링된 거래 목록
+  List<Transaction> get filteredTransactions {
+    if (filter == null) return transactions;
+    return transactions.where((t) => filter!.matches(t)).toList();
+  }
+}
+```
+
+#### 필터 객체
+```dart
+@freezed
+sealed class TransactionFilter with _$TransactionFilter {
+  TransactionFilter({
+    this.categoryId,
+    this.type,
+    this.dateRange,
+    this.minAmount,
+    this.maxAmount,
+    this.searchQuery,
+  });
+
+  final String? categoryId;
+  final TransactionType? type;
+  final DateRange? dateRange;
+  final double? minAmount;
+  final double? maxAmount;
+  final String? searchQuery;
+}
+
+extension TransactionFilterX on TransactionFilter {
+  bool get hasActiveFilter => 
+      categoryId != null ||
+      type != null ||
+      dateRange != null ||
+      minAmount != null ||
+      maxAmount != null ||
+      (searchQuery != null && searchQuery!.isNotEmpty);
+
+  bool matches(Transaction transaction) {
+    // 카테고리 필터
+    if (categoryId != null && transaction.categoryId != categoryId) {
+      return false;
+    }
+    
+    // 타입 필터
+    if (type != null && transaction.type != type) {
+      return false;
+    }
+    
+    // 금액 필터
+    if (minAmount != null && transaction.amount < minAmount!) {
+      return false;
+    }
+    if (maxAmount != null && transaction.amount > maxAmount!) {
+      return false;
+    }
+    
+    // 검색어 필터
+    if (searchQuery != null && searchQuery!.isNotEmpty) {
+      final query = searchQuery!.toLowerCase();
+      return transaction.title.toLowerCase().contains(query) ||
+             transaction.description?.toLowerCase().contains(query) == true;
+    }
+    
+    return true;
+  }
+}
+```
+
+### 5. State Union 패턴 (선택적)
+
+복잡한 상태가 필요한 경우 Union 패턴 사용:
+
+```dart
+@freezed
+sealed class TransactionPageState with _$TransactionPageState {
+  const factory TransactionPageState.initial() = TransactionInitial;
+  const factory TransactionPageState.loading() = TransactionLoading;
+  const factory TransactionPageState.loaded(
+    List<Transaction> transactions,
+    {TransactionFilter? filter}
+  ) = TransactionLoaded;
+  const factory TransactionPageState.error(String message) = TransactionError;
+  const factory TransactionPageState.empty() = TransactionEmpty;
+}
+
+// Pattern Matching 사용 (Dart 3.0)
+Widget buildUI(TransactionPageState state) {
+  return switch (state) {
+    TransactionInitial() => const SizedBox(),
+    TransactionLoading() => const CircularProgressIndicator(),
+    TransactionLoaded(:final transactions) => TransactionList(transactions: transactions),
+    TransactionError(:final message) => ErrorWidget(message: message),
+    TransactionEmpty() => const EmptyStateWidget(),
+  };
+}
+```
+
+### 6. ViewModel에서 State 사용 패턴
+
 ```dart
 class TransactionViewModel extends ChangeNotifier {
-  final GetTransactionsUseCase _getTransactionsUseCase;
-
-  TransactionViewModel({
-    required GetTransactionsUseCase getTransactionsUseCase,
-  }) : _getTransactionsUseCase = getTransactionsUseCase;
-
-  // 상태 객체
-  TransactionState _state = TransactionState(
-    transactions: [],
-    isLoading: false,
-    errorMessage: null,
-  );
-
-  // 상태 접근자
+  TransactionState _state = TransactionState.initial();
+  
   TransactionState get state => _state;
-
-  // 편의 Getters
+  
+  // 편의 Getters (선택적)
   List<Transaction> get transactions => _state.transactions;
   bool get isLoading => _state.isLoading;
-  String? get errorMessage => _state.errorMessage;
   bool get hasError => _state.hasError;
-  bool get isEmpty => _state.isEmpty;
+  double get totalBalance => _state.balance;
 
-  // 상태 업데이트 메서드
+  // 상태 업데이트 헬퍼
   void _updateState(TransactionState newState) {
     _state = newState;
     notifyListeners();
   }
-
-  // 비즈니스 로직
-  Future<void> loadTransactions() async {
-    _updateState(_state.copyWith(isLoading: true, errorMessage: null));
-    
-    final result = await _getTransactionsUseCase();
-    
-    result.when(
-      success: (transactions) {
-        _updateState(_state.copyWith(
-          transactions: transactions,
-          isLoading: false,
-        ));
-      },
-      error: (failure) {
-        _updateState(_state.copyWith(
-          isLoading: false,
-          errorMessage: failure.message,
-        ));
-      },
-    );
-  }
-
-  void clearError() {
-    _updateState(_state.copyWith(errorMessage: null));
-  }
-}
-```
-
-### 간단한 ViewModel 패턴 (상태 객체 없이)
-```dart
-class SimpleTransactionViewModel extends ChangeNotifier {
-  final GetTransactionsUseCase _getTransactionsUseCase;
-
-  SimpleTransactionViewModel(this._getTransactionsUseCase);
-
-  // 개별 상태 변수들
-  List<Transaction> _transactions = [];
-  bool _isLoading = false;
-  String? _errorMessage;
-
-  // Getters
-  List<Transaction> get transactions => _transactions;
-  bool get isLoading => _isLoading;
-  String? get errorMessage => _errorMessage;
-  bool get hasError => _errorMessage != null;
-
-  // 상태 업데이트 메서드들
-  Future<void> loadTransactions() async {
-    _setLoading(true);
-    _clearError();
-    
-    final result = await _getTransactionsUseCase();
-    
-    result.when(
-      success: (transactions) {
-        _transactions = transactions;
-        _setLoading(false);
-      },
-      error: (failure) {
-        _setError(failure.message);
-        _setLoading(false);
-      },
-    );
-  }
-
-  void _setLoading(bool loading) {
-    _isLoading = loading;
-    notifyListeners();
-  }
-
-  void _setError(String message) {
-    _errorMessage = message;
-    notifyListeners();
-  }
-
-  void _clearError() {
-    _errorMessage = null;
-    notifyListeners();
-  }
-}
-```
-
-## UI에서 상태 구독
-
-### Consumer 사용
-```dart
-class TransactionView extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return Consumer<TransactionViewModel>(
-      builder: (context, viewModel, child) {
-        // 에러 상태
-        if (viewModel.hasError) {
-          return ErrorWidget(
-            message: viewModel.errorMessage!,
-            onRetry: () => viewModel.loadTransactions(),
-          );
-        }
-
-        // 로딩 상태
-        if (viewModel.isLoading) {
-          return LoadingWidget();
-        }
-
-        // 빈 상태
-        if (viewModel.isEmpty) {
-          return EmptyWidget();
-        }
-
-        // 데이터 상태
-        return TransactionList(
-          transactions: viewModel.transactions,
-        );
-      },
-    );
-  }
-}
-```
-
-### Selector를 활용한 최적화
-```dart
-// 특정 상태만 구독
-class TransactionCounter extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return Selector<TransactionViewModel, int>(
-      selector: (context, viewModel) => viewModel.transactionCount,
-      builder: (context, count, child) {
-        return Text('총 $count개의 거래');
-      },
-    );
-  }
-}
-
-// 로딩 상태만 구독
-class LoadingIndicator extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return Selector<TransactionViewModel, bool>(
-      selector: (context, viewModel) => viewModel.isLoading,
-      builder: (context, isLoading, child) {
-        return isLoading 
-          ? LinearProgressIndicator()
-          : SizedBox.shrink();
-      },
-    );
-  }
-}
-
-// 에러 상태만 구독
-class ErrorBanner extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return Selector<TransactionViewModel, String?>(
-      selector: (context, viewModel) => viewModel.errorMessage,
-      builder: (context, errorMessage, child) {
-        if (errorMessage == null) return SizedBox.shrink();
-        
-        return MaterialBanner(
-          content: Text(errorMessage),
-          actions: [
-            TextButton(
-              onPressed: () => context.read<TransactionViewModel>().clearError(),
-              child: Text('닫기'),
-            ),
-          ],
-        );
-      },
-    );
-  }
-}
-```
-
-## 복합 상태 관리
-
-### 여러 ViewModel 조합
-```dart
-class HomeScreen extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return MultiProvider(
-      providers: [
-        ChangeNotifierProvider(
-          create: (context) => TransactionViewModel(
-            getTransactionsUseCase: context.read(),
-          ),
-        ),
-        ChangeNotifierProvider(
-          create: (context) => CategoryViewModel(
-            getCategoriesUseCase: context.read(),
-          ),
-        ),
-      ],
-      child: HomeView(),
-    );
-  }
-}
-
-class HomeView extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      body: Column(
-        children: [
-          // 거래 요약
-          Consumer<TransactionViewModel>(
-            builder: (context, transactionVM, child) {
-              return TransactionSummary(
-                totalIncome: transactionVM.state.totalIncome,
-                totalExpense: transactionVM.state.totalExpense,
-              );
-            },
-          ),
-          
-          // 카테고리 차트
-          Consumer<CategoryViewModel>(
-            builder: (context, categoryVM, child) {
-              return CategoryChart(
-                categories: categoryVM.categories,
-              );
-            },
-          ),
-          
-          // 최근 거래 목록
-          Expanded(
-            child: Consumer<TransactionViewModel>(
-              builder: (context, transactionVM, child) {
-                return RecentTransactionList(
-                  transactions: transactionVM.transactions,
-                );
-              },
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-```
-
-### 상호 의존적인 ViewModel
-```dart
-class StatisticsViewModel extends ChangeNotifier {
-  final TransactionViewModel _transactionViewModel;
-  final CategoryViewModel _categoryViewModel;
-
-  StatisticsViewModel({
-    required TransactionViewModel transactionViewModel,
-    required CategoryViewModel categoryViewModel,
-  }) : _transactionViewModel = transactionViewModel,
-       _categoryViewModel = categoryViewModel {
-    
-    // 다른 ViewModel 변경 사항 구독
-    _transactionViewModel.addListener(_onTransactionChanged);
-    _categoryViewModel.addListener(_onCategoryChanged);
-  }
-
-  Map<String, double> _categoryExpenses = {};
-  Map<String, double> get categoryExpenses => _categoryExpenses;
-
-  void _onTransactionChanged() {
-    _calculateCategoryExpenses();
-  }
-
-  void _onCategoryChanged() {
-    _calculateCategoryExpenses();
-  }
-
-  void _calculateCategoryExpenses() {
-    final transactions = _transactionViewModel.transactions;
-    final categories = _categoryViewModel.categories;
-    
-    // 카테고리별 지출 계산
-    _categoryExpenses = {};
-    for (final transaction in transactions) {
-      if (transaction.type == TransactionType.expense) {
-        _categoryExpenses[transaction.category] = 
-            (_categoryExpenses[transaction.category] ?? 0) + transaction.amount;
-      }
-    }
-    
-    notifyListeners();
-  }
-
-  @override
-  void dispose() {
-    _transactionViewModel.removeListener(_onTransactionChanged);
-    _categoryViewModel.removeListener(_onCategoryChanged);
-    super.dispose();
-  }
-}
-```
-
-## 상태 영속화
-
-### SharedPreferences를 이용한 상태 저장
-```dart
-class TransactionViewModel extends ChangeNotifier {
-  static const String _stateKey = 'transaction_state';
   
-  TransactionViewModel() {
-    _loadPersistedState();
+  // 부분 상태 업데이트
+  void _updateLoading(bool loading) {
+    _updateState(_state.copyWith(isLoading: loading));
   }
-
-  Future<void> _loadPersistedState() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final stateJson = prefs.getString(_stateKey);
-      
-      if (stateJson != null) {
-        final stateMap = jsonDecode(stateJson);
-        _state = TransactionState.fromJson(stateMap);
-        notifyListeners();
-      }
-    } catch (e) {
-      // 로딩 실패 시 초기 상태 유지
-    }
+  
+  void _updateError(String? error) {
+    _updateState(_state.copyWith(errorMessage: error));
   }
-
-  void _updateState(TransactionState newState) {
-    _state = newState;
-    notifyListeners();
-    _persistState();
-  }
-
-  Future<void> _persistState() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final stateJson = jsonEncode(_state.toJson());
-      await prefs.setString(_stateKey, stateJson);
-    } catch (e) {
-      // 저장 실패는 무시 (메모리 상태는 유지)
-    }
+  
+  void _updateTransactions(List<Transaction> transactions) {
+    _updateState(_state.copyWith(
+      transactions: transactions,
+      isLoading: false,
+      errorMessage: null,
+    ));
   }
 }
 ```
 
-## 상태 관리 Best Practices
+### 7. State 최적화 패턴
 
-### 1. 상태 설계 원칙
-- **불변성**: freezed로 상태 객체 정의
-- **단일 책임**: 각 ViewModel은 하나의 기능만 담당
-- **명확한 구조**: 상태의 구조를 명확히 정의
+#### 불변성 보장
+```dart
+// ❌ 잘못된 방식 - 상태 직접 변경
+void addTransaction(Transaction transaction) {
+  _state.transactions.add(transaction); // 에러!
+  notifyListeners();
+}
 
-### 2. 성능 최적화
-- **Selector 사용**: 필요한 상태만 구독
-- **적절한 분리**: 상태를 적절히 분리하여 불필요한 리빌드 방지
-- **메모이제이션**: 계산 비용이 높은 getter는 캐싱 고려
+// ✅ 올바른 방식 - 새 상태 생성
+void addTransaction(Transaction transaction) {
+  final updatedTransactions = [..._state.transactions, transaction];
+  _updateState(_state.copyWith(transactions: updatedTransactions));
+}
+```
 
-### 3. 메모리 관리
-- **dispose 구현**: 리소스 정리
-- **리스너 해제**: 다른 ViewModel 구독 시 해제 필수
-- **약한 참조**: 순환 참조 방지
+#### 메모이제이션 (선택적)
+```dart
+extension TransactionStateMemo on TransactionState {
+  // 계산 비용이 높은 경우 캐싱
+  static final Map<String, Map<String, double>> _categoryCache = {};
+  
+  Map<String, double> get expensesByCategoryCached {
+    final key = transactions.map((t) => '${t.id}-${t.amount}').join(',');
+    
+    if (_categoryCache.containsKey(key)) {
+      return _categoryCache[key]!;
+    }
+    
+    final result = expensesByCategory; // 실제 계산
+    _categoryCache[key] = result;
+    return result;
+  }
+}
+```
+
+## Best Practices
+
+### 1. State 설계 원칙
+- **불변성**: 모든 속성을 final로 선언
+- **단순성**: 복잡한 로직은 Extension으로 분리
+- **일관성**: 모든 State에서 동일한 패턴 사용
+- **확장성**: Extension으로 기능 확장
+
+### 2. Extension 활용
+- **기본 상태**: hasError, isEmpty 등
+- **계산된 속성**: 복잡한 계산 로직
+- **헬퍼 메서드**: 상태 생성 도우미
+- **필터링**: 조건별 데이터 추출
+
+### 3. 성능 최적화
+- **적절한 분리**: 자주 변경되는 상태와 안정적인 상태 구분
+- **메모이제이션**: 계산 비용이 높은 경우만 적용
+- **Selector 활용**: UI에서 필요한 부분만 구독
 
 ### 4. 테스트 용이성
-- **상태 분리**: 비즈니스 로직과 UI 로직 분리
-- **의존성 주입**: 테스트용 UseCase 주입 가능
-- **명확한 인터페이스**: 예측 가능한 상태 변화
+- **순수 함수**: Extension 메서드는 순수 함수로 작성
+- **예측 가능성**: 동일한 입력에 동일한 출력
+- **격리성**: 각 State는 독립적으로 테스트 가능
 
 ## 체크리스트
 
-### 상태 설계
-- [ ] freezed로 상태 객체 정의
-- [ ] Extension으로 계산된 속성 추가
-- [ ] 헬퍼 메서드로 초기 상태 생성
+### State 정의
+- [ ] freezed sealed class 사용
+- [ ] 모든 속성 final 선언
+- [ ] 필요한 속성만 포함
+- [ ] null 안전성 고려
 
-### ViewModel 구현
-- [ ] ChangeNotifier 상속
-- [ ] 상태 업데이트 메서드 구현
-- [ ] 적절한 notifyListeners() 호출
-- [ ] dispose에서 리소스 정리
+### Extension 메서드
+- [ ] 기본 상태 확인 메서드
+- [ ] 계산된 속성 분리
+- [ ] 헬퍼 메서드 제공
+- [ ] 성능 고려사항 체크
 
-### UI 연동
-- [ ] Consumer로 상태 구독
-- [ ] Selector로 성능 최적화
-- [ ] 적절한 상태별 UI 처리
-
-### 성능 및 메모리
-- [ ] 불필요한 리빌드 방지
-- [ ] 메모리 누수 방지
-- [ ] 적절한 상태 영속화
+### ViewModel 연동
+- [ ] State 객체로 상태 관리
+- [ ] copyWith로 불변성 유지
+- [ ] 적절한 notifyListeners 호출
+- [ ] 편의 Getters 제공
