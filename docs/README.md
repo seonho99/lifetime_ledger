@@ -14,6 +14,7 @@ docs/
 ├── arch/
 │   ├── folder.md                  # 기능 기반 폴더 구조
 │   ├── layer.md                   # 레이어별 책임 및 흐름
+│   ├── provider.md                # Provider 라이브러리 사용 가이드
 │   ├── result.md                  # Result + UiState 패턴
 │   ├── error.md                   # Failure/예외 처리 전략
 │   ├── naming.md                  # 전반 네이밍 규칙
@@ -24,7 +25,6 @@ docs/
 │   ├── screen.md                  # Screen 설계 가이드
 │   ├── state.md                   # 상태 객체 작성 가이드
 │   ├── viewmodel.md               # ViewModel 설계 가이드 
-│   ├── view.md                    # View 설계 가이드 
 │
 ├── logic/
 │   ├── repository.md              # Repository 설계 및 메서드 규칙
@@ -41,28 +41,28 @@ docs/
 
 # 📚 주요 파일 설명
 
-| 경로                    | 설명                                     |
-|-----------------------|----------------------------------------|
-| `overview/project.md` | 프로젝트 목적, 컨셉, 주요 흐름 요약                  |
-| `overview/roadmap.md` | MVP 기능 정의 + 향후 확장 기능 목록화               |
-| `arch/folder.md`      | 기능 단위 기반의 디렉토리 구조, 예시 포함               |
-| `arch/layer.md`       | data → domain → presentation 흐름, 역할 구분 |
-| `arch/result.md`      | Result 패턴 소개                           |
-| `arch/error.md`       | 예외 → Failure 매핑 전략, 디버깅 유틸             |
-| `arch/naming.md`      | 파일명, 클래스명, 접두어 규칙 총정리                  |
-| `arch/route.md`       | 라우팅 구조, GoRouter 설정 및 네비게이션 방식        |
-| `ui/screen.md`        | 화면별 ChangeNotifierProvider 설정 가이드        |
-| `ui/state.md`         | 상태 객체 작성 및 freezed 사용법               |
-| `ui/viewmodel.md`     | ViewModel 설계, Provider 기반 상태 관리         |
-| `ui/view.md`          | View 설계, MVVM 패턴 적용 가이드               |
-| `ui/component.md`     | 공통 위젯 구조, width/height 처리 원칙           |
-| `logic/repository.md` | Repository interface/impl 규칙 및 메서드 접두사 |
-| `logic/datasource.md` | DataSource 인터페이스/Mock/Impl 규칙, Mock 상태 관리 |
-| `logic/usecase.md`    | UseCase의 역할, Result → ViewModel 흐름 처리     |
-| `logic/model.md`      | Model(Entity) class 설계 원칙 및 생성 규칙      |
-| `logic/dto.md`        | Dto 설계 원칙 및 생성 규칙                      |
-| `logic/mapper.md`     | Mapper 설계 원칙 및 생성 규칙                   |
-| `logic/firebase_model.md` | Firebase 컬렉션 구조 및 DTO 정의             |
+| 경로                        | 설명                                        |
+|---------------------------|-------------------------------------------|
+| `overview/project.md`     | 프로젝트 목적, 컨셉, 주요 흐름 요약                     |
+| `overview/roadmap.md`     | MVVM 기능 정의 + 향후 확장 기능 목록화                 |
+| `arch/folder.md`          | 기능 단위 기반의 디렉토리 구조, 예시 포함                  |
+| `arch/layer.md`           | data → domain → presentation 흐름, 역할 구분    |
+| `arch/provider.md`        | Provider 라이브러리 기본 사용법, MultiProvider 설정    |
+| `arch/result.md`          | Result 패턴 소개                              |
+| `arch/error.md`           | 예외 → Failure 매핑 전략, 디버깅 유틸                |
+| `arch/naming.md`          | 파일명, 클래스명, 접두어 규칙 총정리                     |
+| `arch/route.md`           | 라우팅 구조, GoRouter 설정 및 네비게이션 방식            |
+| `ui/screen.md`            | 화면별 ChangeNotifierProvider 설정 가이드         |
+| `ui/state.md`             | 상태 객체 작성 및 freezed 사용법                    |
+| `ui/viewmodel.md`         | ChangeNotifier 기반 ViewModel 설계 가이드          |
+| `ui/component.md`         | 공통 위젯 구조, width/height 처리 원칙              |
+| `logic/repository.md`     | Repository interface/impl 규칙 및 메서드 접두사    |
+| `logic/datasource.md`     | DataSource 인터페이스/Mock/Impl 규칙, Mock 상태 관리 |
+| `logic/usecase.md`        | UseCase의 역할, Result → ViewModel 흐름 처리     |
+| `logic/model.md`          | Model(Entity) class 설계 원칙 및 생성 규칙         |
+| `logic/dto.md`            | Dto 설계 원칙 및 생성 규칙                         |
+| `logic/mapper.md`         | Mapper 설계 원칙 및 생성 규칙                      |
+| `logic/firebase_model.md` | Firebase 컬렉션 구조 및 DTO 정의                  |
 
 ---
 
