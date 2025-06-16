@@ -11,6 +11,8 @@
 #### 주요 컴포넌트
 - ViewModels (ChangeNotifier 기반)
 - Views/Screens
+- State Objects (freezed)
+- UI Components
 
 ### 2. Domain Layer
 - 비즈니스 로직을 포함
@@ -53,7 +55,7 @@
 
 ## Provider 기반 MVVM 패턴
 
-### State 구조
+### State 구조 (freezed 3.0)
 ```dart
 @freezed
 class TransactionState with _$TransactionState {
@@ -74,19 +76,14 @@ extension TransactionStateX on TransactionState {
   bool get isEmpty => transactions.isEmpty;
   int get transactionCount => transactions.length;
 
-  // 특정 조건의 거래만 필터링
-  List<Transaction> get incomeTransactions =>
-      transactions.where((t) => t.type == TransactionType.income).toList();
-
-  List<Transaction> get expenseTransactions =>
-      transactions.where((t) => t.type == TransactionType.expense).toList();
-
   // 계산된 속성들
-  double get totalIncome => incomeTransactions
+  double get totalIncome => transactions
+      .where((t) => t.type == TransactionType.income)
       .map((t) => t.amount)
       .fold(0.0, (sum, amount) => sum + amount);
 
-  double get totalExpense => expenseTransactions
+  double get totalExpense => transactions
+      .where((t) => t.type == TransactionType.expense)
       .map((t) => t.amount)
       .fold(0.0, (sum, amount) => sum + amount);
 
@@ -113,7 +110,7 @@ extension TransactionStateHelpers on TransactionState {
 }
 ```
 
-### ViewModel 구조
+### ViewModel 구조 (ChangeNotifier)
 ```dart
 class TransactionViewModel extends ChangeNotifier {
   final GetTransactionsUseCase _getTransactionsUseCase;
@@ -122,37 +119,63 @@ class TransactionViewModel extends ChangeNotifier {
     required GetTransactionsUseCase getTransactionsUseCase,
   }) : _getTransactionsUseCase = getTransactionsUseCase;
 
-  // 상태
-  List<Transaction> _transactions = [];
-  bool _isLoading = false;
+  // 상태 객체
+  TransactionState _state = TransactionState(
+    transactions: [],
+    isLoading: false,
+    errorMessage: null,
+  );
 
-  // Getters
-  List<Transaction> get transactions => _transactions;
-  bool get isLoading => _isLoading;
+  // 상태 접근자
+  TransactionState get state => _state;
+
+  // 편의 Getters
+  List<Transaction> get transactions => _state.transactions;
+  bool get isLoading => _state.isLoading;
+  String? get errorMessage => _state.errorMessage;
+  bool get hasError => _state.hasError;
 
   // 비즈니스 로직
   Future<void> loadTransactions() async {
-    _isLoading = true;
-    notifyListeners();
-
+    _updateState(_state.copyWith(isLoading: true, errorMessage: null));
+    
     final result = await _getTransactionsUseCase();
+    
     result.when(
       success: (transactions) {
-        _transactions = transactions;
-        _isLoading = false;
-        notifyListeners();
+        _updateState(_state.copyWith(
+          transactions: transactions,
+          isLoading: false,
+        ));
       },
       error: (failure) {
-        _isLoading = false;
-        notifyListeners();
+        _updateState(_state.copyWith(
+          isLoading: false,
+          errorMessage: failure.message,
+        ));
       },
     );
+  }
+
+  void clearError() {
+    _updateState(_state.copyWith(errorMessage: null));
+  }
+
+  // 상태 업데이트 헬퍼
+  void _updateState(TransactionState newState) {
+    _state = newState;
+    notifyListeners();
+  }
+
+  @override
+  void dispose() {
+    // 리소스 정리
+    super.dispose();
   }
 }
 ```
 
-
-### Screen 구조 (Provider 설정 + UI 구현 통합)
+### Screen 구조 (Provider 설정 + UI 구현)
 ```dart
 class TransactionScreen extends StatelessWidget {
   const TransactionScreen({super.key});
@@ -167,10 +190,31 @@ class TransactionScreen extends StatelessWidget {
         appBar: AppBar(title: const Text('거래 내역')),
         body: Consumer<TransactionViewModel>(
           builder: (context, viewModel, child) {
-            if (viewModel.isLoading) {
-              return const Center(child: CircularProgressIndicator());
+            // 에러 상태
+            if (viewModel.hasError) {
+              return Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(viewModel.errorMessage!),
+                    ElevatedButton(
+                      onPressed: () {
+                        viewModel.clearError();
+                        viewModel.loadTransactions();
+                      },
+                      child: Text('다시 시도'),
+                    ),
+                  ],
+                ),
+              );
             }
 
+            // 로딩 상태
+            if (viewModel.isLoading) {
+              return Center(child: CircularProgressIndicator());
+            }
+
+            // 데이터 상태
             return ListView.builder(
               itemCount: viewModel.transactions.length,
               itemBuilder: (context, index) {
@@ -183,6 +227,45 @@ class TransactionScreen extends StatelessWidget {
             );
           },
         ),
+      ),
+    );
+  }
+}
+```
+
+## 전역 Provider 설정
+
+### main.dart 구조
+```dart
+void main() {
+  runApp(const MyApp());
+}
+
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MultiProvider(
+      providers: [
+        // Repository들
+        Provider<TransactionRepository>(
+          create: (context) => TransactionRepositoryImpl(
+            remoteDataSource: RemoteDataSourceImpl(),
+            localDataSource: LocalDataSourceImpl(),
+          ),
+        ),
+        
+        // UseCase들
+        Provider<GetTransactionsUseCase>(
+          create: (context) => GetTransactionsUseCase(
+            repository: context.read<TransactionRepository>(),
+          ),
+        ),
+      ],
+      child: MaterialApp(
+        title: 'Lifetime Ledger',
+        home: const TransactionScreen(),
       ),
     );
   }
@@ -210,33 +293,87 @@ class TransactionScreen extends StatelessWidget {
 ```dart
 // 특정 상태만 구독하여 불필요한 리빌드 방지
 Selector<TransactionViewModel, bool>(
-selector: (context, viewModel) => viewModel.isLoading,
-builder: (context, isLoading, child) {
-return isLoading
-? const CircularProgressIndicator()
-    : const SomeWidget();
-},
+  selector: (context, viewModel) => viewModel.isLoading,
+  builder: (context, isLoading, child) {
+    return isLoading
+      ? const CircularProgressIndicator()
+      : const SizedBox.shrink();
+  },
 )
+
+// 거래 개수만 구독
+Selector<TransactionViewModel, int>(
+  selector: (context, viewModel) => viewModel.transactionCount,
+  builder: (context, count, child) {
+    return Text('총 $count개의 거래');
+  },
+)
+```
+
+### context.read vs context.watch
+```dart
+class ActionButton extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    // watch: 상태 변경 시 리빌드됨
+    final isLoading = context.watch<TransactionViewModel>().isLoading;
+    
+    return ElevatedButton(
+      // read: 한 번만 접근, 리빌드 되지 않음
+      onPressed: isLoading 
+        ? null 
+        : () => context.read<TransactionViewModel>().loadTransactions(),
+      child: isLoading 
+        ? CircularProgressIndicator()
+        : Text('새로고침'),
+    );
+  }
+}
 ```
 
 ### MultiProvider 사용
 ```dart
 MultiProvider(
-providers: [
-ChangeNotifierProvider(
-create: (context) => TransactionViewModel(
-getTransactionsUseCase: context.read(),
-addTransactionUseCase: context.read(),
-),
-),
-ChangeNotifierProvider(
-create: (context) => CategoryViewModel(
-getCategoriesUseCase: context.read(),
-),
-),
-],
-child: const MyApp(),
+  providers: [
+    ChangeNotifierProvider(
+      create: (context) => TransactionViewModel(
+        getTransactionsUseCase: context.read(),
+      ),
+    ),
+    ChangeNotifierProvider(
+      create: (context) => CategoryViewModel(
+        getCategoriesUseCase: context.read(),
+      ),
+    ),
+  ],
+  child: const MyApp(),
 )
+```
+
+## Result 패턴 연동
+
+### ViewModel에서 Result 처리
+```dart
+Future<void> loadTransactions() async {
+  _updateState(_state.copyWith(isLoading: true, errorMessage: null));
+  
+  final result = await _getTransactionsUseCase();
+  
+  result.when(
+    success: (transactions) {
+      _updateState(_state.copyWith(
+        transactions: transactions,
+        isLoading: false,
+      ));
+    },
+    error: (failure) {
+      _updateState(_state.copyWith(
+        isLoading: false,
+        errorMessage: failure.message,
+      ));
+    },
+  );
+}
 ```
 
 ## 에러 처리
@@ -252,6 +389,7 @@ child: const MyApp(),
 - UI 로직과 비즈니스 로직 분리
 - 적절한 생명주기 관리 (dispose)
 - 에러 상태와 로딩 상태 관리
+- freezed로 상태 객체 정의
 
 ### View
 - Consumer와 Selector 적절히 사용
@@ -264,6 +402,12 @@ child: const MyApp(),
 - const 생성자 활용
 - RepaintBoundary 적절히 사용
 - 메모리 누수 방지
+
+### 상태 설계
+- 불변 상태 객체 사용 (freezed)
+- Extension으로 계산된 속성 추가
+- 명확한 상태 구조 정의
+- 적절한 상태 분리
 
 ## 폴더 구조 예시
 ```
@@ -279,9 +423,10 @@ lib/
 │       │   ├── repositories/
 │       │   └── usecases/
 │       └── presentation/
-│           ├── viewmodels/
-│           ├── views/
-│           └── widgets/
+│           ├── states/        # State 객체들
+│           ├── viewmodels/    # ViewModel들
+│           ├── screens/       # Screen들
+│           └── widgets/       # UI 컴포넌트들
 ├── core/
 └── shared/
 ```

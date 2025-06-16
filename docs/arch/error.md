@@ -38,19 +38,27 @@ class ServerException extends DataException {
 }
 ```
 
-### 3. 프레젠테이션 레이어 에러
+### 3. Failure 클래스 (Result 패턴용)
 ```dart
-abstract class UIException implements Exception {
+abstract class Failure {
   final String message;
-  const UIException(this.message);
+  const Failure(this.message);
 }
 
-class NavigationException extends UIException {
-  const NavigationException(String message) : super(message);
+class NetworkFailure extends Failure {
+  const NetworkFailure(String message) : super(message);
 }
 
-class FormValidationException extends UIException {
-  const FormValidationException(String message) : super(message);
+class ServerFailure extends Failure {
+  const ServerFailure(String message) : super(message);
+}
+
+class CacheFailure extends Failure {
+  const CacheFailure(String message) : super(message);
+}
+
+class ValidationFailure extends Failure {
+  const ValidationFailure(String message) : super(message);
 }
 ```
 
@@ -59,14 +67,24 @@ class FormValidationException extends UIException {
 ### 1. 데이터 소스 레벨
 ```dart
 class RemoteDataSource {
-  Future<Result<T>> getData() async {
+  Future<Result<List<TransactionDto>>> getTransactions() async {
     try {
-      // API 호출
-      return Success(data);
+      final response = await apiClient.get('/transactions');
+      final transactions = response.data
+          .map<TransactionDto>((json) => TransactionDto.fromJson(json))
+          .toList();
+      
+      return Success(transactions);
     } on DioException catch (e) {
-      return Error(NetworkException(e.message));
+      if (e.type == DioExceptionType.connectionTimeout) {
+        return Error(NetworkFailure('연결 시간이 초과되었습니다.'));
+      } else if (e.type == DioExceptionType.receiveTimeout) {
+        return Error(NetworkFailure('응답 시간이 초과되었습니다.'));
+      } else {
+        return Error(NetworkFailure('네트워크 오류가 발생했습니다.'));
+      }
     } catch (e) {
-      return Error(ServerException(e.toString()));
+      return Error(ServerFailure('알 수 없는 오류가 발생했습니다.'));
     }
   }
 }
@@ -74,16 +92,29 @@ class RemoteDataSource {
 
 ### 2. 리포지토리 레벨
 ```dart
-class RepositoryImpl implements Repository {
+class TransactionRepositoryImpl implements TransactionRepository {
   final RemoteDataSource remoteDataSource;
   final LocalDataSource localDataSource;
 
-  Future<Result<T>> getData() async {
+  TransactionRepositoryImpl({
+    required this.remoteDataSource,
+    required this.localDataSource,
+  });
+
+  @override
+  Future<Result<List<Transaction>>> getTransactions() async {
     try {
-      final result = await remoteDataSource.getData();
-      return result;
-    } on DataException catch (e) {
-      return Error(e);
+      final result = await remoteDataSource.getTransactions();
+      
+      return result.fold(
+        onSuccess: (dtos) {
+          final transactions = dtos.map((dto) => dto.toEntity()).toList();
+          return Success(transactions);
+        },
+        onError: (failure) => Error(failure),
+      );
+    } catch (e) {
+      return Error(ServerFailure('데이터 처리 중 오류가 발생했습니다.'));
     }
   }
 }
@@ -91,36 +122,283 @@ class RepositoryImpl implements Repository {
 
 ### 3. 유스케이스 레벨
 ```dart
-class GetDataUseCase {
-  final Repository repository;
+class GetTransactionsUseCase {
+  final TransactionRepository repository;
 
-  Future<Result<T>> call() async {
+  GetTransactionsUseCase(this.repository);
+
+  Future<Result<List<Transaction>>> call() async {
     try {
-      return await repository.getData();
-    } on DomainException catch (e) {
-      return Error(e);
+      return await repository.getTransactions();
+    } catch (e) {
+      return Error(ServerFailure('거래 내역을 가져오는 중 오류가 발생했습니다.'));
     }
   }
 }
 ```
 
-### 4. BLoC 레벨
+### 4. ViewModel 레벨 (Provider 패턴)
 ```dart
-class DataBloc extends Bloc<DataEvent, DataState> {
-  final GetDataUseCase getDataUseCase;
+class TransactionViewModel extends ChangeNotifier {
+  final GetTransactionsUseCase getTransactionsUseCase;
 
-  Future<void> _onGetData(
-    GetData event,
-    Emitter<DataState> emit,
-  ) async {
-    emit(DataLoading());
+  TransactionViewModel(this.getTransactionsUseCase);
+
+  List<Transaction> _transactions = [];
+  bool _isLoading = false;
+  String? _errorMessage;
+
+  List<Transaction> get transactions => _transactions;
+  bool get isLoading => _isLoading;
+  String? get errorMessage => _errorMessage;
+  bool get hasError => _errorMessage != null;
+
+  Future<void> loadTransactions() async {
+    _setLoading(true);
+    _clearError();
     
-    final result = await getDataUseCase();
+    final result = await getTransactionsUseCase();
     
     result.when(
-      success: (data) => emit(DataLoaded(data)),
-      error: (failure) => emit(DataError(failure.message)),
+      success: (transactions) {
+        _transactions = transactions;
+        _setLoading(false);
+      },
+      error: (failure) {
+        _handleError(failure);
+        _setLoading(false);
+      },
     );
+  }
+
+  void _handleError(Failure failure) {
+    switch (failure.runtimeType) {
+      case NetworkFailure:
+        _setError('인터넷 연결을 확인해주세요.');
+        break;
+      case ServerFailure:
+        _setError('서버 오류가 발생했습니다. 잠시 후 다시 시도해주세요.');
+        break;
+      case ValidationFailure:
+        _setError(failure.message);
+        break;
+      default:
+        _setError('알 수 없는 오류가 발생했습니다.');
+    }
+  }
+
+  void _setLoading(bool loading) {
+    _isLoading = loading;
+    notifyListeners();
+  }
+
+  void _setError(String message) {
+    _errorMessage = message;
+    notifyListeners();
+  }
+
+  void _clearError() {
+    _errorMessage = null;
+    notifyListeners();
+  }
+
+  void clearError() {
+    _clearError();
+  }
+
+  void retryLastAction() {
+    clearError();
+    loadTransactions();
+  }
+}
+```
+
+### 5. UI 레벨에서 에러 처리
+```dart
+class TransactionScreen extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return ChangeNotifierProvider(
+      create: (context) => TransactionViewModel(
+        context.read<GetTransactionsUseCase>(),
+      )..loadTransactions(),
+      child: Scaffold(
+        appBar: AppBar(title: Text('거래 내역')),
+        body: Consumer<TransactionViewModel>(
+          builder: (context, viewModel, child) {
+            return Stack(
+              children: [
+                // 메인 컨텐츠
+                _buildMainContent(viewModel),
+                
+                // 에러 오버레이
+                if (viewModel.hasError)
+                  _buildErrorOverlay(context, viewModel),
+                
+                // 로딩 오버레이
+                if (viewModel.isLoading)
+                  _buildLoadingOverlay(),
+              ],
+            );
+          },
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMainContent(TransactionViewModel viewModel) {
+    if (viewModel.transactions.isEmpty && !viewModel.isLoading) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.receipt_long, size: 64, color: Colors.grey),
+            SizedBox(height: 16),
+            Text('거래 내역이 없습니다.'),
+          ],
+        ),
+      );
+    }
+
+    return ListView.builder(
+      itemCount: viewModel.transactions.length,
+      itemBuilder: (context, index) {
+        return TransactionCard(
+          transaction: viewModel.transactions[index],
+        );
+      },
+    );
+  }
+
+  Widget _buildErrorOverlay(BuildContext context, TransactionViewModel viewModel) {
+    return Container(
+      color: Colors.black54,
+      child: Center(
+        child: Card(
+          margin: EdgeInsets.all(16),
+          child: Padding(
+            padding: EdgeInsets.all(16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.error_outline, size: 48, color: Colors.red),
+                SizedBox(height: 16),
+                Text(
+                  viewModel.errorMessage!,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(fontSize: 16),
+                ),
+                SizedBox(height: 16),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  children: [
+                    TextButton(
+                      onPressed: () => viewModel.clearError(),
+                      child: Text('닫기'),
+                    ),
+                    ElevatedButton(
+                      onPressed: () => viewModel.retryLastAction(),
+                      child: Text('다시 시도'),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildLoadingOverlay() {
+    return Container(
+      color: Colors.black26,
+      child: Center(
+        child: Card(
+          child: Padding(
+            padding: EdgeInsets.all(16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                CircularProgressIndicator(),
+                SizedBox(height: 16),
+                Text('로딩 중...'),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+```
+
+## 에러 처리 유틸리티
+
+### 공통 에러 처리 Mixin
+```dart
+mixin ErrorHandlerMixin on ChangeNotifier {
+  String? _errorMessage;
+  
+  String? get errorMessage => _errorMessage;
+  bool get hasError => _errorMessage != null;
+
+  void handleError(Failure failure) {
+    switch (failure.runtimeType) {
+      case NetworkFailure:
+        _setError('인터넷 연결을 확인해주세요.');
+        break;
+      case ServerFailure:
+        _setError('서버 오류가 발생했습니다.');
+        break;
+      case ValidationFailure:
+        _setError(failure.message);
+        break;
+      default:
+        _setError('알 수 없는 오류가 발생했습니다.');
+    }
+  }
+
+  void _setError(String message) {
+    _errorMessage = message;
+    notifyListeners();
+  }
+
+  void clearError() {
+    _errorMessage = null;
+    notifyListeners();
+  }
+}
+
+// 사용 예시
+class TransactionViewModel extends ChangeNotifier with ErrorHandlerMixin {
+  // ... 다른 코드
+
+  Future<void> loadTransactions() async {
+    final result = await getTransactionsUseCase();
+    
+    result.when(
+      success: (transactions) => _transactions = transactions,
+      error: (failure) => handleError(failure), // Mixin 사용
+    );
+  }
+}
+```
+
+### 글로벌 에러 핸들러
+```dart
+class GlobalErrorHandler {
+  static void handle(Failure failure) {
+    // 로깅
+    print('Error: ${failure.message}');
+    
+    // 에러 리포팅 (Crashlytics 등)
+    // FirebaseCrashlytics.instance.recordError(failure, null);
+    
+    // 사용자에게 알림 (필요시)
+    if (failure is NetworkFailure) {
+      // 네트워크 에러 특별 처리
+    }
   }
 }
 ```
@@ -128,86 +406,43 @@ class DataBloc extends Bloc<DataEvent, DataState> {
 ## 에러 처리 Best Practices
 
 ### 1. 에러 계층화
-- 도메인 에러
-- 데이터 에러
-- UI 에러
-- 각 계층별 명확한 에러 정의
+- **Exception**: 기술적 에러 (네트워크, 파싱 등)
+- **Failure**: 비즈니스 에러 (Result 패턴용)
+- **UI Error**: 사용자에게 보여줄 에러 메시지
 
-### 2. 에러 전파
-- Result 패턴을 통한 에러 전파
-- 각 레이어에서 적절한 에러 변환
-- 에러 메시지의 일관성 유지
+### 2. ViewModel에서 에러 관리
+- **상태로 관리**: `_errorMessage`, `hasError`
+- **타입별 처리**: NetworkFailure, ServerFailure 등
+- **사용자 친화적 메시지**: 기술적 용어 지양
 
-### 3. 에러 로깅
-- 중요 에러의 로깅
-- 에러 컨텍스트 정보 포함
-- 로깅 레벨 구분
+### 3. UI에서 에러 표시
+- **오버레이 방식**: 현재 화면 위에 표시
+- **인라인 방식**: 해당 위치에 직접 표시
+- **스낵바 방식**: 간단한 에러 메시지
 
-### 4. 사용자 피드백
-- 사용자 친화적인 에러 메시지
-- 에러 복구 방법 제시
-- 적절한 UI 피드백
+### 4. 에러 복구
+- **다시 시도**: `retryLastAction()` 메서드
+- **에러 해제**: `clearError()` 메서드
+- **대안 제시**: 오프라인 모드, 캐시 데이터 등
 
-### 5. 에러 복구
-- 자동 재시도 메커니즘
-- 폴백 옵션 제공
-- 오프라인 모드 지원
+## 체크리스트
 
-## 에러 처리 패턴
+### 에러 정의
+- [ ] 각 레이어별 Exception 정의
+- [ ] Failure 클래스 구조화
+- [ ] 사용자 친화적 메시지 준비
 
-### 1. Try-Catch 패턴
-```dart
-try {
-  // 위험한 작업
-} on SpecificException catch (e) {
-  // 특정 예외 처리
-} catch (e) {
-  // 일반 예외 처리
-} finally {
-  // 정리 작업
-}
-```
+### ViewModel 에러 처리
+- [ ] 에러 상태 관리 (errorMessage, hasError)
+- [ ] 타입별 에러 처리 로직
+- [ ] 에러 해제 및 재시도 메서드
 
-### 2. Result 패턴
-```dart
-Future<Result<T>> getData() async {
-  try {
-    return Success(data);
-  } catch (e) {
-    return Error(failure);
-  }
-}
-```
+### UI 에러 표시
+- [ ] Consumer로 에러 상태 구독
+- [ ] 적절한 에러 UI 구성
+- [ ] 사용자 액션 제공 (다시 시도, 닫기)
 
-### 3. Either 패턴
-```dart
-Future<Either<Failure, T>> getData() async {
-  try {
-    return Right(data);
-  } catch (e) {
-    return Left(failure);
-  }
-}
-```
-
-## 에러 처리 체크리스트
-
-### 1. 에러 정의
-- [ ] 모든 가능한 에러 케이스 정의
-- [ ] 에러 메시지의 일관성
-- [ ] 에러 코드 체계
-
-### 2. 에러 처리
-- [ ] 각 레이어별 에러 처리
-- [ ] 에러 전파 메커니즘
-- [ ] 에러 복구 전략
-
-### 3. 사용자 경험
-- [ ] 사용자 친화적인 에러 메시지
-- [ ] 적절한 UI 피드백
-- [ ] 에러 복구 방법 제시
-
-### 4. 테스트
-- [ ] 에러 케이스 테스트
-- [ ] 에러 처리 로직 테스트
-- [ ] 에러 복구 메커니즘 테스트
+### 성능 및 UX
+- [ ] 에러 발생 시 리소스 정리
+- [ ] 적절한 로딩 상태 관리
+- [ ] 에러 로깅 및 모니터링
