@@ -3,7 +3,7 @@
 ## 프로젝트 루트 구조
 ```
 lib/
-├── core/                 # 핵심 유틸리티 및 상수
+├── core/                # 핵심 유틸리티 및 상수
 ├── features/            # 기능별 모듈
 ├── shared/              # 공통 위젯 및 유틸리티
 └── main.dart            # 앱 진입점
@@ -23,7 +23,6 @@ core/
 ```
 features/
 ├── auth/               # 인증 관련 기능
-├── transaction/        # 거래 관리 기능
 ├── budget/            # 예산 관리 기능
 ├── category/          # 카테고리 관리 기능
 └── statistics/        # 통계 및 리포트 기능
@@ -41,8 +40,8 @@ feature/
 │   ├── repositories/  # 리포지토리 인터페이스
 │   └── usecases/      # 유스케이스
 └── presentation/      # 프레젠테이션 레이어
-    ├── bloc/          # 상태 관리
-    ├── pages/         # 화면
+    ├── provider/      # 상태 관리
+    ├── screen/        # 화면
     └── widgets/       # 위젯
 ```
 
