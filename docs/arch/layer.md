@@ -1,379 +1,142 @@
-# 레이어 구조
+# 🧱 레이어별 책임 및 흐름 가이드
 
-## Clean Architecture + MVVM + Provider 패턴
+---
 
-### 1. 전체 아키텍처 흐름
+# ✅ 아키텍처 구조 배경
 
-```
-MainActivity -> [MultiProvider] -> Screen -> [ChangeNotifierProvider] -> View -> [Consumer] -> ViewModel -> UseCase -> Repository -> DataSource
-     ↓              ↓                ↓              ↓                      ↓         ↓          ↓          ↓          ↓           ↓
-   앱 진입점      의존성 주입         화면 단위    ViewModel 제공           UI 구성   상태 구독   상태 관리   비즈니스    데이터 추상화  데이터 소스
-```
+이 프로젝트는 기본적으로 **Provider + MVVM + Clean Architecture**를 기반으로 화면 구조를 설계합니다.
 
-### 2. Clean Architecture 레이어
+- **Provider**를 통해 의존성 주입과 상태 관리를 수행하고,
+- **MVVM** 패턴을 통해 ViewModel(ChangeNotifier) 중심으로 상태를 관리하며,
+- **Clean Architecture**를 통해 레이어별 책임을 명확히 구분합니다.
 
-#### Presentation Layer (UI + ViewModel)
-- **ViewModel**: ChangeNotifier 기반 상태 관리
-- **Screen**: ChangeNotifierProvider 설정
-- **View**: Consumer/Selector로 상태 구독
+하지만 이 구조만으로는 화면/상태 흐름은 명확해지지만,  
+**비즈니스 로직 처리(UseCase, Repository, DataSource)와 데이터 흐름에 대한 책임 구분은 명확히 설명되지 않습니다.**
+
+따라서 이 문서에서는  
+**Provider + MVVM 아키텍처 흐름을 보완하는 레이어 구분**을 추가하여,
+- 각 계층의 책임을 명확히 하고,
+- 데이터 흐름을 일관성 있게 유지하며,
+- 비즈니스 로직이 올바른 위치에서 처리되도록 강제하는  
+  기준을 제공합니다.
+
+---
+
+# 🏛️ 레이어 구조
+
+### 1. Presentation Layer (MVVM)
+
+- **UI 계층**입니다.
+- **Screen**: ChangeNotifierProvider 설정 + StatelessWidget UI
+- **ViewModel**: ChangeNotifier 기반 상태 관리, UseCase 호출
 - **State**: freezed 기반 불변 상태 객체
+- **Widget**: 재사용 가능한 UI 컴포넌트
+- Consumer/Selector로 상태를 구독하고, ViewModel 메서드를 호출합니다.
+- 직접 비즈니스 로직을 실행하거나 외부 데이터 통신을 호출하지 않습니다.
 
-#### Domain Layer (비즈니스 로직)
-- **Entities**: 순수 도메인 모델
-- **UseCases**: 비즈니스 로직 실행
-- **Repository Interfaces**: 데이터 계층 추상화
+---
 
-#### Data Layer (데이터 처리)
-- **Repository Implementations**: 데이터 소스 조합
-- **DataSources**: 실제 데이터 접근
-- **DTOs**: 데이터 전송 객체
+### 2. Domain Layer
 
-### 3. Provider 통합 방식
+- **비즈니스 로직 계층**입니다.
+- **Entity**: 순수 도메인 모델 (Transaction, Category 등)
+- **UseCase**: 비즈니스 규칙을 실행합니다.
+- **Repository Interface**: 데이터 접근을 추상화합니다.
+- Repository 인터페이스를 정의하고, 이 인터페이스만 의존합니다.
+- 외부 통신은 직접 호출하지 않고, Repository를 통해 간접적으로 수행합니다.
 
-#### 전역 Provider 설정 (main.dart) - 프로덕션 레벨
-```dart
-void main() {
-  runApp(const MyApp());
-}
+---
 
-class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+### 3. Data Layer
 
-  @override
-  Widget build(BuildContext context) {
-    return MultiProvider(
-      providers: [
-        // Core Services
-        Provider<StorageService>(
-          create: (context) => StorageServiceImpl(),
-        ),
+- **외부 데이터 통신 및 가공 계층**입니다.
+- **Repository Implementation**: Domain Layer의 Repository 인터페이스를 구현합니다.
+- **DataSource**: 외부 통신을 수행합니다 (Remote/Local).
+- **DTO**: 데이터 전송 객체
+- **Mapper**: DTO ↔ Entity 변환을 수행합니다.
 
-        Provider<ApiService>(
-          create: (context) => ApiServiceImpl(),
-        ),
+---
 
-        Provider<NetworkInfo>(
-          create: (context) => NetworkInfoImpl(),
-        ),
+# 🔥 데이터 흐름 (Provider 패턴)
 
-        // Data Layer - DataSources
-        Provider<TransactionRemoteDataSource>(
-          create: (context) => TransactionRemoteDataSourceImpl(
-            apiService: context.read<ApiService>(),
-          ),
-        ),
-
-        Provider<TransactionLocalDataSource>(
-          create: (context) => TransactionLocalDataSourceImpl(
-            storageService: context.read<StorageService>(),
-          ),
-        ),
-
-        Provider<CategoryRemoteDataSource>(
-          create: (context) => CategoryRemoteDataSourceImpl(
-            apiService: context.read<ApiService>(),
-          ),
-        ),
-
-        Provider<CategoryLocalDataSource>(
-          create: (context) => CategoryLocalDataSourceImpl(
-            storageService: context.read<StorageService>(),
-          ),
-        ),
-
-        // Data Layer - Repositories
-        Provider<TransactionRepository>(
-          create: (context) => TransactionRepositoryImpl(
-            remoteDataSource: context.read<TransactionRemoteDataSource>(),
-            localDataSource: context.read<TransactionLocalDataSource>(),
-            networkInfo: context.read<NetworkInfo>(),
-          ),
-        ),
-
-        Provider<CategoryRepository>(
-          create: (context) => CategoryRepositoryImpl(
-            remoteDataSource: context.read<CategoryRemoteDataSource>(),
-            localDataSource: context.read<CategoryLocalDataSource>(),
-            networkInfo: context.read<NetworkInfo>(),
-          ),
-        ),
-
-        Provider<BudgetRepository>(
-          create: (context) => BudgetRepositoryImpl(
-            remoteDataSource: context.read<BudgetRemoteDataSource>(),
-            localDataSource: context.read<BudgetLocalDataSource>(),
-          ),
-        ),
-
-        // Domain Layer - UseCases (Transaction)
-        Provider<GetTransactionsUseCase>(
-          create: (context) => GetTransactionsUseCase(
-            repository: context.read<TransactionRepository>(),
-          ),
-        ),
-
-        Provider<GetTransactionByIdUseCase>(
-          create: (context) => GetTransactionByIdUseCase(
-            repository: context.read<TransactionRepository>(),
-          ),
-        ),
-
-        Provider<AddTransactionUseCase>(
-          create: (context) => AddTransactionUseCase(
-            repository: context.read<TransactionRepository>(),
-          ),
-        ),
-
-        Provider<UpdateTransactionUseCase>(
-          create: (context) => UpdateTransactionUseCase(
-            repository: context.read<TransactionRepository>(),
-          ),
-        ),
-
-        Provider<DeleteTransactionUseCase>(
-          create: (context) => DeleteTransactionUseCase(
-            repository: context.read<TransactionRepository>(),
-          ),
-        ),
-
-        // Domain Layer - UseCases (Category)
-        Provider<GetCategoriesUseCase>(
-          create: (context) => GetCategoriesUseCase(
-            repository: context.read<CategoryRepository>(),
-          ),
-        ),
-
-        Provider<AddCategoryUseCase>(
-          create: (context) => AddCategoryUseCase(
-            repository: context.read<CategoryRepository>(),
-          ),
-        ),
-
-        // Domain Layer - UseCases (Budget)
-        Provider<GetBudgetsUseCase>(
-          create: (context) => GetBudgetsUseCase(
-            repository: context.read<BudgetRepository>(),
-          ),
-        ),
-
-        Provider<CreateBudgetUseCase>(
-          create: (context) => CreateBudgetUseCase(
-            repository: context.read<BudgetRepository>(),
-          ),
-        ),
-
-        // Domain Layer - UseCases (Statistics)
-        Provider<GetExpensesByCategoryUseCase>(
-          create: (context) => GetExpensesByCategoryUseCase(
-            transactionRepository: context.read<TransactionRepository>(),
-            categoryRepository: context.read<CategoryRepository>(),
-          ),
-        ),
-
-        Provider<GetMonthlyReportUseCase>(
-          create: (context) => GetMonthlyReportUseCase(
-            transactionRepository: context.read<TransactionRepository>(),
-          ),
-        ),
-      ],
-      child: MaterialApp(
-        title: 'Lifetime Ledger',
-        theme: AppTheme.lightTheme,
-        darkTheme: AppTheme.darkTheme,
-        initialRoute: '/',
-        onGenerateRoute: AppRouter.generateRoute,
-      ),
-    );
-  }
-}
+```
+UI Event → ViewModel → UseCase → Repository → DataSource
+         ↓
+   notifyListeners() → Consumer 리빌드
 ```
 
-#### 화면별 ViewModel Provider 설정
-```dart
-// Screen - ChangeNotifierProvider 설정
-class TransactionScreen extends StatelessWidget {
-  const TransactionScreen({super.key});
+- 흐름은 항상 단방향입니다.
+- 상위 레이어가 하위 레이어에만 의존합니다.
+- 하위 레이어는 상위 레이어를 참조하지 않습니다.
 
-  @override
-  Widget build(BuildContext context) {
-    return ChangeNotifierProvider(
-      create: (context) => TransactionViewModel(
-        getTransactionsUseCase: context.read<GetTransactionsUseCase>(),
-        addTransactionUseCase: context.read<AddTransactionUseCase>(),
-      )..loadTransactions(), // 초기 데이터 로드
-      child: const TransactionView(),
-    );
-  }
-}
+---
 
-// View - Consumer로 상태 구독
-class TransactionView extends StatelessWidget {
-  const TransactionView({super.key});
+# 🧠 상태 및 결과 관리 규칙
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('거래 내역')),
-      body: Consumer<TransactionViewModel>(
-        builder: (context, viewModel, child) {
-          // 상태별 UI 처리 (간단한 예시)
-          if (viewModel.isLoading) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          
-          if (viewModel.hasError) {
-            return Center(child: Text(viewModel.errorMessage!));
-          }
-          
-          return ListView.builder(
-            itemCount: viewModel.transactions.length,
-            itemBuilder: (context, index) {
-              return ListTile(
-                title: Text(viewModel.transactions[index].title),
-                subtitle: Text('₩${viewModel.transactions[index].amount}'),
-              );
-            },
-          );
-        },
-      ),
-    );
-  }
-}
-```
+- **DataSource**는 네트워크 호출 결과를 반환합니다.
+- **RepositoryImpl**은 DataSource를 호출하고 결과를 변환합니다.
+- **RepositoryImpl**은 결과를 **Result<T>** 형태로 감싸서 반환합니다.
+- **UseCase**는 Repository로부터 받은 Result<T>를 그대로 반환합니다.
+- **ViewModel**은 UseCase로부터 받은 Result<T>를 처리하여 State를 업데이트하고 notifyListeners()를 호출합니다.
 
-### 4. ViewModel과 State 연동
+✅ **Result<T> 패턴은 Repository에서 생성, ViewModel에서 처리**
 
-#### 간단한 State 예시
-```dart
-// State 객체 (상세 내용은 state.md 참조)
-@freezed
-sealed class TransactionState with _$TransactionState {
-  TransactionState({
-    required this.transactions,
-    required this.isLoading,
-    this.errorMessage,
-  });
-  
-  final List<Transaction> transactions;
-  final bool isLoading;
-  final String? errorMessage;
-}
-```
+> 이 책임 분리를 통해 통신/실패 로직과 UI 상태 관리 로직을 명확히 구분할 수 있습니다.
 
-#### ViewModel 구현 (아키텍처 통합)
+---
 
-```dart
-class TransactionViewModel extends ChangeNotifier {
-  final GetTransactionsUseCase _getTransactionsUseCase;
-  final AddTransactionUseCase _addTransactionUseCase;
+# 🗂️ 폴더 구조 설계 (보완 설명)
 
-  TransactionViewModel({
-    required GetTransactionsUseCase getTransactionsUseCase,
-    required AddTransactionUseCase addTransactionUseCase,
-  }) : _getTransactionsUseCase = getTransactionsUseCase,
-       _addTransactionUseCase = addTransactionUseCase;
+| 폴더 | 역할 |
+|:---|:---|
+| data/datasources | 외부 통신 전용 (Firebase, REST API 등) |
+| data/models | 서버와 통신하는 순수 데이터 객체 (DTO) |
+| data/mappers | DTO ↔ Domain Entity 변환 책임 |
+| data/repositories | Repository 인터페이스의 구현체 |
+| domain/entities | 도메인 순수 엔티티 (비즈니스 단위 객체) |
+| domain/repositories | Repository 인터페이스 (UseCase가 의존) |
+| domain/usecases | 비즈니스 로직 실행 책임 |
+| presentation/states | freezed 기반 상태 객체 |
+| presentation/viewmodels | ChangeNotifier 기반 ViewModel |
+| presentation/screens | ChangeNotifierProvider 설정 + UI |
+| presentation/widgets | 재사용 가능한 UI 컴포넌트 |
 
-  // State 객체로 상태 관리 (상세 구현은 state.md 참조)
-  TransactionState _state = TransactionState.initial();
+✅ Repository 인터페이스는 domain에,  
+✅ Repository 구현체는 data에 둡니다.  
+✅ UseCase는 항상 Repository 인터페이스만 의존합니다.
 
-  TransactionState get state => _state;
-  List<Transaction> get transactions => _state.transactions;
-  bool get isLoading => _state.isLoading;
-  bool get hasError => _state.hasError;
+---
 
-  // 상태 업데이트 (Provider 알림)
-  void _updateState(TransactionState newState) {
-    _state = newState;
-    notifyListeners();
-  }
+# 🛠️ 레이어별 책임 요약
 
-  // 비즈니스 로직 (간단한 에러 처리)
-  Future<void> loadTransactions() async {
-    _updateState(_state.copyWith(isLoading: true, errorMessage: null));
-    
-    final result = await _getTransactionsUseCase();
-    
-    switch (result) {
-      case Success(data: final transactions):
-        _updateState(_state.copyWith(transactions: transactions, isLoading: false));
-      case Error(failure: final failure):
-        _updateState(_state.copyWith(isLoading: false, errorMessage: failure.message));
-    }
-  }
-  
-  // 다른 CRUD 메서드들...
-  // 상세 구현은 관련 가이드 문서 참조
-}
-```
+| 레이어 | 주요 책임 | 주의사항 |
+|:---|:---|:---|
+| Presentation (Screen/ViewModel) | 상태 관리, UI 이벤트 처리 | 직접 비즈니스 로직이나 외부 통신 호출 금지 |
+| ViewModel | State 관리, UseCase 호출, notifyListeners | UseCase 호출 외에는 비즈니스 로직 직접 처리 금지 |
+| UseCase | 비즈니스 규칙 실행 | 직접 외부 통신(DataSource) 호출 금지 |
+| Repository (Interface) | 외부 데이터 접근 추상화 | 직접 DataSource 호출 안 함 |
+| RepositoryImpl (Implementation) | 외부 데이터 가공 및 제공 | Result<T>로 감싸서 반환 |
+| DataSource | 외부 통신 수행 | 외부 데이터 접근만 담당 |
 
-> **구현 세부사항 참조**:
-> - **State 설계**: `state.md` 참조
-> - **Result 패턴**: `result.md` 참조
-> - **에러 처리**: `error.md` 참조
-> - **Provider 사용법**: `provider.md` 참조
-```
+---
 
-### 5. 레이어 간 데이터 흐름
+# 🧩 예시 흐름 (구체적)
 
-#### UI 이벤트 → ViewModel → UseCase → Repository
-```dart
-// 1. UI 이벤트 발생
-onPressed: () => context.read<TransactionViewModel>().loadTransactions(),
+1. 사용자가 버튼 클릭 → UI에서 `context.read<ViewModel>().method()` 호출
+2. ViewModel이 해당 Action에 맞는 UseCase 호출
+3. UseCase가 Repository(Interface)를 호출
+4. RepositoryImpl이 DataSource를 통해 외부 통신
+5. 통신 결과(Result<T>)가 RepositoryImpl → UseCase → ViewModel로 전달
+6. ViewModel이 Result<T>를 처리하여 State 업데이트 후 notifyListeners() 호출
+7. Consumer가 상태 변경을 감지하여 UI 재렌더링
 
-// 2. ViewModel에서 UseCase 호출
-Future<void> loadTransactions() async {
-  final result = await _getTransactionsUseCase();
-  // 결과 처리...
-}
+---
 
-// 3. UseCase에서 Repository 호출
-class GetTransactionsUseCase {
-  Future<Result<List<Transaction>>> call() async {
-    return await repository.getTransactions();
-  }
-}
+# ✅ 문서 요약
 
-// 4. Repository에서 DataSource 접근
-class TransactionRepositoryImpl implements TransactionRepository {
-  Future<Result<List<Transaction>>> getTransactions() async {
-    final result = await remoteDataSource.getTransactions();
-    // DTO → Entity 변환 후 반환
-  }
-}
-```
-
-### 6. Provider 최적화
-
-#### Selector를 활용한 부분 구독
-```dart
-// 특정 상태만 구독하여 불필요한 리빌드 방지
-Selector<TransactionViewModel, bool>(
-  selector: (context, viewModel) => viewModel.isLoading,
-  builder: (context, isLoading, child) {
-    return isLoading 
-      ? const CircularProgressIndicator()
-      : const SizedBox.shrink();
-  },
-)
-
-// 거래 개수만 구독
-Selector<TransactionViewModel, int>(
-  selector: (context, viewModel) => viewModel.transactions.length,
-  builder: (context, count, child) {
-    return Text('총 $count개의 거래');
-  },
-)
-```
-
-## 의존성 규칙
-1. 외부 레이어는 내부 레이어에 의존할 수 없음
-2. Provider는 의존성 주입만 담당, 비즈니스 로직 포함 안 함
-3. ViewModel은 UseCase만 호출, Repository 직접 접근 금지
-4. State는 불변 객체로 관리, ViewModel에서만 변경
-
-## 데이터 흐름 요약
-1. **MultiProvider**: 전역 의존성 주입 (Repository, UseCase)
-2. **ChangeNotifierProvider**: 화면별 ViewModel 제공
-3. **Consumer/Selector**: UI에서 상태 구독 및 업데이트
-4. **ViewModel**: State 관리 + UseCase 호출
-5. **Result 패턴**: 성공/실패 처리 및 UI 상태 업데이트
+- 레이어는 Presentation → Domain → Data 순으로 구성합니다.
+- 항상 단방향 흐름을 유지합니다.
+- 비즈니스 로직은 UseCase에만 존재합니다.
+- 외부 통신 결과는 RepositoryImpl에서 Result<T>로 감싸서 반환합니다.
+- 상태 관리는 ViewModel이 담당하며 Provider 패턴으로 의존성을 주입합니다.
+- 폴더 구조는 책임에 따라 세분화하여 관리합니다.

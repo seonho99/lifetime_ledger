@@ -1,181 +1,60 @@
-# Result 패턴
+# 🎯 Result 패턴 설계 가이드
 
-## 개요
-Result 패턴은 비동기 작업의 성공/실패를 명확하게 처리하기 위한 패턴입니다.
-이 패턴을 통해 에러 처리를 더 명확하고 타입 안전하게 할 수 있습니다.
+---
 
-## Result 클래스 구조
+## ✅ 목적
+
+Repository 계층에서 발생하는 성공/실패 응답을 예외 없이 흐름으로 처리하기 위해  
+Result 패턴을 사용한다. 이를 통해 도메인 계층에서 예외를 래핑하고,  
+ViewModel은 흐름만 받아 상태를 구성한다. 테스트성과 추적성이 향상되고  
+상태 기반 UI 연동이 자연스럽게 이어진다.
+
+---
+
+## ✅ 설계 원칙
+
+- Repository는 항상 `Result<T>`를 반환한다.
+- Result는 `Success<T>`와 `Error(Failure)` 두 가지 형태를 갖는 sealed class이다.
+- 예외를 직접 throw하지 않고, `Failure`로 포장한 후 `Result.error()`로 감싼다.
+- ViewModel은 Result를 직접 처리하여 State 객체를 업데이트하고 notifyListeners()를 호출한다.
+- DataSource는 외부 호출 중 발생하는 Exception을 throw하고,  
+  Repository는 이를 catch하여 Result로 변환한다.
+
+---
+
+## ✅ 흐름 구조 요약
+
+```text
+DataSource      → throws Exception
+Repository      → try-catch → Result<T> (Failure 포함)
+UseCase         → Result<T> 그대로 반환
+ViewModel       → Result.when() 처리 → State 업데이트 → notifyListeners()
+UI              → Consumer로 상태 구독 → 상태별 UI 렌더링
+```
+
+---
+
+## ✅ Result 클래스 정의
+
 ```dart
+/// 비동기 작업의 성공/실패를 타입 안전하게 처리하기 위한 Result 패턴
 sealed class Result<T> {
-   const Result();
+  const Result();
 }
 
+/// 성공 결과
 class Success<T> extends Result<T> {
-   final T data;
-   const Success(this.data);
+  final T data;
+  const Success(this.data);
 }
 
+/// 실패 결과
 class Error<T> extends Result<T> {
-   final Failure failure;
-   const Error(this.failure);
-}
-```
-
-## Failure 클래스 구조
-```dart
-abstract class Failure {
-   final String message;
-   const Failure(this.message);
+  final Failure failure;
+  const Error(this.failure);
 }
 
-class ServerFailure extends Failure {
-   const ServerFailure(String message) : super(message);
-}
-
-class CacheFailure extends Failure {
-   const CacheFailure(String message) : super(message);
-}
-
-class NetworkFailure extends Failure {
-   const NetworkFailure(String message) : super(message);
-}
-```
-
-## 사용 예시
-
-### Repository 레벨
-```dart
-abstract class TransactionRepository {
-   Future<Result<List<Transaction>>> getTransactions();
-   Future<Result<void>> addTransaction(Transaction transaction);
-}
-```
-
-### UseCase 레벨
-```dart
-class GetTransactionsUseCase {
-   final TransactionRepository repository;
-
-   GetTransactionsUseCase(this.repository);
-
-   Future<Result<List<Transaction>>> call() async {
-      return await repository.getTransactions();
-   }
-}
-```
-
-### ViewModel 레벨 (Provider 패턴)
-```dart
-class TransactionViewModel extends ChangeNotifier {
-  final GetTransactionsUseCase getTransactionsUseCase;
-
-  TransactionViewModel(this.getTransactionsUseCase);
-
-  List<Transaction> _transactions = [];
-  bool _isLoading = false;
-  String? _errorMessage;
-
-  List<Transaction> get transactions => _transactions;
-  bool get isLoading => _isLoading;
-  String? get errorMessage => _errorMessage;
-  bool get hasError => _errorMessage != null;
-
-  Future<void> loadTransactions() async {
-    _setLoading(true);
-    _clearError();
-    
-    final result = await getTransactionsUseCase();
-    
-    result.when(
-      success: (transactions) {
-        _transactions = transactions;
-        _setLoading(false);
-      },
-      error: (failure) {
-        _setError(failure.message);
-        _setLoading(false);
-      },
-    );
-  }
-
-  void _setLoading(bool loading) {
-    _isLoading = loading;
-    notifyListeners();
-  }
-
-  void _setError(String message) {
-    _errorMessage = message;
-    _isLoading = false;
-    notifyListeners();
-  }
-
-  void _clearError() {
-    _errorMessage = null;
-    notifyListeners();
-  }
-
-  void clearError() {
-    _clearError();
-  }
-}
-```
-
-### UI 레벨에서 Result 처리
-```dart
-class TransactionScreen extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return ChangeNotifierProvider(
-      create: (context) => TransactionViewModel(
-        context.read<GetTransactionsUseCase>(),
-      )..loadTransactions(),
-      child: Scaffold(
-        appBar: AppBar(title: Text('거래 내역')),
-        body: Consumer<TransactionViewModel>(
-          builder: (context, viewModel, child) {
-            // 에러 상태 처리
-            if (viewModel.hasError) {
-              return Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Text(viewModel.errorMessage!),
-                    ElevatedButton(
-                      onPressed: () {
-                        viewModel.clearError();
-                        viewModel.loadTransactions();
-                      },
-                      child: Text('다시 시도'),
-                    ),
-                  ],
-                ),
-              );
-            }
-
-            // 로딩 상태 처리
-            if (viewModel.isLoading) {
-              return Center(child: CircularProgressIndicator());
-            }
-
-            // 성공 상태 처리
-            return ListView.builder(
-              itemCount: viewModel.transactions.length,
-              itemBuilder: (context, index) {
-                return TransactionCard(
-                  transaction: viewModel.transactions[index],
-                );
-              },
-            );
-          },
-        ),
-      ),
-    );
-  }
-}
-```
-
-## Result 패턴 확장 메서드
-```dart
+/// Result 패턴 확장 메서드
 extension ResultExtension<T> on Result<T> {
   void when({
     required Function(T data) success,
@@ -224,23 +103,59 @@ extension ResultExtension<T> on Result<T> {
 }
 ```
 
-## Repository 구현 예시
+---
+
+## ✅ Failure 정의
+
+```dart
+/// Failure 추상 클래스
+abstract class Failure {
+  final String message;
+  const Failure(this.message);
+}
+
+/// 서버 에러
+class ServerFailure extends Failure {
+  const ServerFailure(String message) : super(message);
+}
+
+/// 네트워크 에러
+class NetworkFailure extends Failure {
+  const NetworkFailure(String message) : super(message);
+}
+
+/// 캐시 에러
+class CacheFailure extends Failure {
+  const CacheFailure(String message) : super(message);
+}
+
+/// 검증 에러
+class ValidationFailure extends Failure {
+  const ValidationFailure(String message) : super(message);
+}
+```
+
+---
+
+## ✅ 예외 → Result 변환 예시 (Repository)
+
 ```dart
 class TransactionRepositoryImpl implements TransactionRepository {
-  final RemoteDataSource remoteDataSource;
-  final LocalDataSource localDataSource;
+  final TransactionRemoteDataSource _remoteDataSource;
+  final TransactionLocalDataSource _localDataSource;
 
   TransactionRepositoryImpl({
-    required this.remoteDataSource,
-    required this.localDataSource,
-  });
+    required TransactionRemoteDataSource remoteDataSource,
+    required TransactionLocalDataSource localDataSource,
+  }) : _remoteDataSource = remoteDataSource,
+       _localDataSource = localDataSource;
 
   @override
   Future<Result<List<Transaction>>> getTransactions() async {
     try {
-      final transactionDtos = await remoteDataSource.getTransactions();
+      final transactionDtos = await _remoteDataSource.getTransactions();
       final transactions = transactionDtos
-          .map((dto) => dto.toEntity())
+          .map((dto) => TransactionMapper.toEntity(dto))
           .toList();
       
       return Success(transactions);
@@ -256,8 +171,8 @@ class TransactionRepositoryImpl implements TransactionRepository {
   @override
   Future<Result<void>> addTransaction(Transaction transaction) async {
     try {
-      final dto = TransactionDto.fromEntity(transaction);
-      await remoteDataSource.addTransaction(dto);
+      final dto = TransactionMapper.toDto(transaction);
+      await _remoteDataSource.addTransaction(dto);
       return Success(null);
     } on NetworkException catch (e) {
       return Error(NetworkFailure(e.message));
@@ -270,68 +185,201 @@ class TransactionRepositoryImpl implements TransactionRepository {
 }
 ```
 
-## Result 패턴의 장점
-1. **타입 안전성**
-   - 컴파일 타임에 에러 처리 확인
-   - null 안전성 보장
+---
 
-2. **명확한 에러 처리**
-   - 에러 타입별 구분
-   - 에러 메시지 표준화
+## ✅ Exception → Failure 매핑 유틸
 
-3. **코드 가독성**
-   - 성공/실패 케이스 명확한 구분
-   - 패턴 매칭을 통한 간결한 처리
-
-4. **테스트 용이성**
-   - 성공/실패 케이스 테스트 용이
-   - 모킹이 간단
-
-## Provider 패턴과의 연동
-
-### ViewModel에서 Result 처리 패턴
 ```dart
-Future<void> performAction() async {
-  _setLoading(true);
-  
-  final result = await useCase();
-  
-  result.when(
-    success: (data) {
-      // 성공 처리
-      _updateData(data);
-      _setLoading(false);
-    },
-    error: (failure) {
-      // 에러 처리
-      _setError(failure.message);
-      _setLoading(false);
-    },
-  );
+/// 커스텀 예외 클래스들
+abstract class AppException implements Exception {
+  final String message;
+  const AppException(this.message);
+}
+
+class NetworkException extends AppException {
+  const NetworkException(String message) : super(message);
+}
+
+class ServerException extends AppException {
+  const ServerException(String message) : super(message);
+}
+
+class CacheException extends AppException {
+  const CacheException(String message) : super(message);
+}
+
+/// Exception을 Failure로 매핑하는 유틸리티
+class FailureMapper {
+  static Failure mapExceptionToFailure(Object error) {
+    if (error is NetworkException) {
+      return NetworkFailure(error.message);
+    } else if (error is ServerException) {
+      return ServerFailure(error.message);
+    } else if (error is CacheException) {
+      return CacheFailure(error.message);
+    } else if (error is FormatException) {
+      return ServerFailure('데이터 형식 오류입니다');
+    } else if (error.toString().contains('SocketException')) {
+      return NetworkFailure('인터넷 연결을 확인해주세요');
+    } else {
+      return ServerFailure('알 수 없는 오류가 발생했습니다');
+    }
+  }
 }
 ```
 
-### UI에서 상태별 처리
+---
+
+## ✅ UseCase에서 Result 처리
+
 ```dart
-Consumer<ViewModel>(
-  builder: (context, viewModel, child) {
-    if (viewModel.hasError) {
-      return ErrorWidget(message: viewModel.errorMessage!);
-    }
-    
-    if (viewModel.isLoading) {
-      return LoadingWidget();
-    }
-    
-    return SuccessWidget(data: viewModel.data);
-  },
-)
+class GetTransactionsUseCase {
+  final TransactionRepository _repository;
+
+  GetTransactionsUseCase({required TransactionRepository repository})
+      : _repository = repository;
+
+  Future<Result<List<Transaction>>> call() async {
+    return await _repository.getTransactions();
+  }
+}
 ```
 
-## Best Practices
-1. 모든 비동기 작업에 Result 패턴 적용
-2. 구체적인 Failure 타입 정의
-3. 에러 메시지의 일관성 유지
-4. Result 처리 시 when 메서드 사용
-5. ViewModel에서 적절한 상태 관리
-6. UI에서 명확한 상태별 처리
+---
+
+## ✅ ViewModel에서 Result 처리
+
+```dart
+class TransactionViewModel extends ChangeNotifier {
+  final GetTransactionsUseCase _getTransactionsUseCase;
+
+  TransactionViewModel({
+    required GetTransactionsUseCase getTransactionsUseCase,
+  }) : _getTransactionsUseCase = getTransactionsUseCase;
+
+  TransactionState _state = TransactionState.initial();
+  TransactionState get state => _state;
+
+  List<Transaction> get transactions => _state.transactions;
+  bool get isLoading => _state.isLoading;
+  bool get hasError => _state.errorMessage != null;
+  String? get errorMessage => _state.errorMessage;
+
+  void _updateState(TransactionState newState) {
+    _state = newState;
+    notifyListeners();
+  }
+
+  Future<void> loadTransactions() async {
+    _updateState(_state.copyWith(isLoading: true, errorMessage: null));
+    
+    final result = await _getTransactionsUseCase();
+    
+    result.when(
+      success: (transactions) {
+        _updateState(_state.copyWith(
+          transactions: transactions,
+          isLoading: false,
+          errorMessage: null,
+        ));
+      },
+      error: (failure) {
+        _updateState(_state.copyWith(
+          isLoading: false,
+          errorMessage: _getErrorMessage(failure),
+        ));
+      },
+    );
+  }
+
+  String _getErrorMessage(Failure failure) {
+    switch (failure.runtimeType) {
+      case NetworkFailure:
+        return '인터넷 연결을 확인해주세요.';
+      case ServerFailure:
+        return '서버 오류가 발생했습니다. 잠시 후 다시 시도해주세요.';
+      case ValidationFailure:
+        return failure.message;
+      default:
+        return '알 수 없는 오류가 발생했습니다.';
+    }
+  }
+
+  void clearError() {
+    _updateState(_state.copyWith(errorMessage: null));
+  }
+
+  void retryLastAction() {
+    clearError();
+    loadTransactions();
+  }
+}
+```
+
+---
+
+## ✅ UI (Provider + Consumer)
+
+```dart
+class TransactionScreen extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return ChangeNotifierProvider(
+      create: (context) => TransactionViewModel(
+        getTransactionsUseCase: context.read<GetTransactionsUseCase>(),
+      )..loadTransactions(),
+      child: Scaffold(
+        appBar: AppBar(title: Text('거래 내역')),
+        body: Consumer<TransactionViewModel>(
+          builder: (context, viewModel, child) {
+            // 에러 상태 처리
+            if (viewModel.hasError) {
+              return Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(viewModel.errorMessage!),
+                    ElevatedButton(
+                      onPressed: () => viewModel.retryLastAction(),
+                      child: Text('다시 시도'),
+                    ),
+                  ],
+                ),
+              );
+            }
+
+            // 로딩 상태 처리
+            if (viewModel.isLoading) {
+              return Center(child: CircularProgressIndicator());
+            }
+
+            // 성공 상태 처리
+            return ListView.builder(
+              itemCount: viewModel.transactions.length,
+              itemBuilder: (context, index) {
+                return TransactionCard(
+                  transaction: viewModel.transactions[index],
+                );
+              },
+            );
+          },
+        ),
+      ),
+    );
+  }
+}
+```
+
+---
+
+## ✅ 흐름 요약
+
+| 단계       | 처리 방식                          |
+|------------|-----------------------------------|
+| DataSource | Exception throw                   |
+| Repository | try-catch → `Result<T>`           |
+| UseCase    | `Result<T>` 그대로 반환           |
+| ViewModel  | `Result.when()` 처리 → State 업데이트 → notifyListeners() |
+| UI         | Consumer로 상태 구독 → 상태별 UI 렌더링 |
+
+---

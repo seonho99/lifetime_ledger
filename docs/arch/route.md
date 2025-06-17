@@ -1,16 +1,61 @@
-# 라우팅 가이드
+# 🛣️ 라우팅 (Route) 설계 가이드
 
-## GoRouter 설정 (Provider 패턴)
+---
 
-### 1. 기본 라우터 구성
+## ✅ 목적
+
+- **GoRouter**를 통해 앱의 전체 라우팅 경로를 설정
+- 경로(path)와 Screen을 연결하는 역할만 담당
+- 라우팅은 네비게이션만 처리하고, 비즈니스 로직은 포함하지 않음
+- **Provider + MVVM** 패턴과 자연스럽게 연동
+
+---
+
+## 🧱 설계 원칙
+
+- GoRouter는 main.dart에서 설정하거나 별도 라우터 클래스로 관리
+- Screen은 ChangeNotifierProvider 설정과 UI를 담당
+- ViewModel은 UseCase 호출과 상태 관리를 담당
+- Route는 경로-Screen 매핑만 담당하며, 상태/인증 체크 등 비즈니스 로직을 처리하지 않음
+- ViewModel에서 네비게이션 메서드를 제공하여 UI 이벤트 처리
+
+---
+
+## ✅ 파일 구조 및 위치
+
+```
+lib/
+├── core/
+│   └── router/
+│       └── app_router.dart              # 메인 라우터 설정
+├── features/
+│   └── {기능}/
+│       └── presentation/
+│           └── screens/
+│               ├── {기능}_screen.dart   # ChangeNotifierProvider + UI
+│               └── {기능}_view.dart     # 순수 UI (선택적)
+└── main.dart                            # GoRouter 설정
+```
+
+---
+
+## ✅ 기본 라우터 설정
+
+### main.dart에서 GoRouter 설정
+
 ```dart
+import 'package:go_router/go_router.dart';
+
 final router = GoRouter(
   initialLocation: '/',
   routes: [
+    // 홈
     GoRoute(
       path: '/',
       builder: (context, state) => const HomeScreen(),
     ),
+    
+    // 거래 관련
     GoRoute(
       path: '/transactions',
       builder: (context, state) => const TransactionScreen(),
@@ -25,33 +70,44 @@ final router = GoRouter(
         transactionId: state.pathParameters['id']!,
       ),
     ),
+    
+    // 카테고리 관련
+    GoRoute(
+      path: '/categories',
+      builder: (context, state) => const CategoryScreen(),
+    ),
+    
+    // 통계
+    GoRoute(
+      path: '/statistics',
+      builder: (context, state) => const StatisticsScreen(),
+    ),
   ],
+  errorBuilder: (context, state) => const NotFoundScreen(),
 );
-```
 
-### 2. Provider와 라우팅 통합
-```dart
+void main() {
+  runApp(MyApp());
+}
+
 class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MultiProvider(
       providers: [
-        // Repositories
+        // 전역 Provider 설정
         Provider<TransactionRepository>(
-          create: (context) => TransactionRepositoryImpl(),
+          create: (context) => TransactionRepositoryImpl(
+            remoteDataSource: TransactionRemoteDataSourceImpl(),
+            localDataSource: TransactionLocalDataSourceImpl(),
+          ),
         ),
-        
-        // UseCases
         Provider<GetTransactionsUseCase>(
           create: (context) => GetTransactionsUseCase(
             repository: context.read<TransactionRepository>(),
           ),
         ),
-        
-        // 라우팅에 필요한 글로벌 ViewModel들
-        ChangeNotifierProvider<NavigationViewModel>(
-          create: (context) => NavigationViewModel(),
-        ),
+        // ... 다른 Provider들
       ],
       child: MaterialApp.router(
         title: 'Lifetime Ledger',
@@ -62,9 +118,12 @@ class MyApp extends StatelessWidget {
 }
 ```
 
-## 화면별 Provider 설정과 라우팅
+---
 
-### 1. 기본 Screen 패턴
+## 🏗️ Screen 구조 예시
+
+### 1. 기본 Screen (ChangeNotifierProvider 설정)
+
 ```dart
 class TransactionScreen extends StatelessWidget {
   const TransactionScreen({super.key});
@@ -74,6 +133,7 @@ class TransactionScreen extends StatelessWidget {
     return ChangeNotifierProvider(
       create: (context) => TransactionViewModel(
         getTransactionsUseCase: context.read<GetTransactionsUseCase>(),
+        addTransactionUseCase: context.read<AddTransactionUseCase>(),
       )..loadTransactions(),
       child: const TransactionView(),
     );
@@ -86,36 +146,46 @@ class TransactionView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('거래 내역')),
+      appBar: AppBar(
+        title: const Text('거래 내역'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.add),
+            onPressed: () => context.push('/transactions/add'),
+          ),
+        ],
+      ),
       body: Consumer<TransactionViewModel>(
         builder: (context, viewModel, child) {
+          if (viewModel.isLoading) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          
+          if (viewModel.hasError) {
+            return Center(child: Text(viewModel.errorMessage!));
+          }
+          
           return ListView.builder(
             itemCount: viewModel.transactions.length,
             itemBuilder: (context, index) {
               return TransactionCard(
                 transaction: viewModel.transactions[index],
-                onTap: () {
-                  // ViewModel에서 네비게이션 처리
-                  viewModel.navigateToDetail(
-                    context, 
-                    viewModel.transactions[index].id,
-                  );
-                },
+                onTap: () => viewModel.navigateToDetail(
+                  context, 
+                  viewModel.transactions[index].id,
+                ),
               );
             },
           );
         },
-      ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () => context.go('/transactions/add'),
-        child: const Icon(Icons.add),
       ),
     );
   }
 }
 ```
 
-### 2. 파라미터가 있는 Screen
+### 2. Parameter가 있는 Screen
+
 ```dart
 class TransactionDetailScreen extends StatelessWidget {
   final String transactionId;
@@ -138,65 +208,30 @@ class TransactionDetailScreen extends StatelessWidget {
     );
   }
 }
-
-class TransactionDetailView extends StatelessWidget {
-  const TransactionDetailView({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return Consumer<TransactionDetailViewModel>(
-      builder: (context, viewModel, child) {
-        if (viewModel.isLoading) {
-          return const Scaffold(
-            body: Center(child: CircularProgressIndicator()),
-          );
-        }
-
-        if (viewModel.transaction == null) {
-          return const Scaffold(
-            body: Center(child: Text('거래를 찾을 수 없습니다.')),
-          );
-        }
-
-        return Scaffold(
-          appBar: AppBar(
-            title: const Text('거래 상세'),
-            actions: [
-              IconButton(
-                icon: const Icon(Icons.edit),
-                onPressed: () => viewModel.navigateToEdit(context),
-              ),
-              IconButton(
-                icon: const Icon(Icons.delete),
-                onPressed: () => viewModel.deleteTransaction(context),
-              ),
-            ],
-          ),
-          body: TransactionDetailContent(
-            transaction: viewModel.transaction!,
-          ),
-        );
-      },
-    );
-  }
-}
 ```
 
-## ViewModel에서 네비게이션 처리
+---
 
-### 1. NavigationMixin 생성
+## 🔄 ViewModel에서 네비게이션 처리
+
+### NavigationMixin 생성
+
 ```dart
 mixin NavigationMixin {
   void navigateTo(BuildContext context, String path) {
-    context.go(path);
+    context.push(path);
+  }
+
+  void navigateAndReplace(BuildContext context, String path) {
+    context.pushReplacement(path);
   }
 
   void navigateBack(BuildContext context) {
     context.pop();
   }
 
-  void navigateAndReplace(BuildContext context, String path) {
-    context.pushReplacement(path);
+  void navigateToRoot(BuildContext context, String path) {
+    context.go(path);
   }
 
   Future<T?> navigateModal<T>(BuildContext context, String path) {
@@ -205,18 +240,20 @@ mixin NavigationMixin {
 }
 ```
 
-### 2. ViewModel에서 네비게이션 사용
+### ViewModel에서 네비게이션 사용
+
 ```dart
 class TransactionViewModel extends ChangeNotifier with NavigationMixin {
   final GetTransactionsUseCase _getTransactionsUseCase;
+  final AddTransactionUseCase _addTransactionUseCase;
 
   TransactionViewModel({
     required GetTransactionsUseCase getTransactionsUseCase,
-  }) : _getTransactionsUseCase = getTransactionsUseCase;
+    required AddTransactionUseCase addTransactionUseCase,
+  }) : _getTransactionsUseCase = getTransactionsUseCase,
+       _addTransactionUseCase = addTransactionUseCase;
 
-  List<Transaction> _transactions = [];
-  
-  List<Transaction> get transactions => _transactions;
+  // 상태 관리 로직...
 
   void navigateToDetail(BuildContext context, String transactionId) {
     navigateTo(context, '/transactions/$transactionId');
@@ -246,100 +283,12 @@ class TransactionViewModel extends ChangeNotifier with NavigationMixin {
 }
 ```
 
-### 3. 네비게이션과 상태 관리 연동
-```dart
-class TransactionDetailViewModel extends ChangeNotifier with NavigationMixin {
-  final String transactionId;
-  final GetTransactionUseCase _getTransactionUseCase;
-  final DeleteTransactionUseCase _deleteTransactionUseCase;
+---
 
-  TransactionDetailViewModel({
-    required this.transactionId,
-    required GetTransactionUseCase getTransactionUseCase,
-    required DeleteTransactionUseCase deleteTransactionUseCase,
-  }) : _getTransactionUseCase = getTransactionUseCase,
-       _deleteTransactionUseCase = deleteTransactionUseCase;
+## 🔄 고급 라우팅 구조
 
-  Transaction? _transaction;
-  bool _isLoading = false;
+### 1. ShellRoute 사용 (탭 구조)
 
-  Transaction? get transaction => _transaction;
-  bool get isLoading => _isLoading;
-
-  Future<void> loadTransaction() async {
-    _isLoading = true;
-    notifyListeners();
-
-    final result = await _getTransactionUseCase(transactionId);
-    
-    result.when(
-      success: (transaction) {
-        _transaction = transaction;
-        _isLoading = false;
-        notifyListeners();
-      },
-      error: (failure) {
-        _isLoading = false;
-        notifyListeners();
-      },
-    );
-  }
-
-  void navigateToEdit(BuildContext context) {
-    navigateTo(context, '/transactions/$transactionId/edit');
-  }
-
-  Future<void> deleteTransaction(BuildContext context) async {
-    final confirmed = await _showDeleteConfirmation(context);
-    if (!confirmed) return;
-
-    final result = await _deleteTransactionUseCase(transactionId);
-    
-    result.when(
-      success: (_) {
-        // 삭제 성공 시 목록으로 돌아가기
-        navigateAndReplace(context, '/transactions');
-      },
-      error: (failure) {
-        // 에러 처리
-        _showErrorSnackbar(context, failure.message);
-      },
-    );
-  }
-
-  Future<bool> _showDeleteConfirmation(BuildContext context) async {
-    final result = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('거래 삭제'),
-        content: const Text('이 거래를 삭제하시겠습니까?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('취소'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('삭제'),
-          ),
-        ],
-      ),
-    );
-    
-    return result ?? false;
-  }
-
-  void _showErrorSnackbar(BuildContext context, String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message)),
-    );
-  }
-}
-```
-
-## 중첩 라우팅과 Provider
-
-### 1. ShellRoute 사용
 ```dart
 final router = GoRouter(
   routes: [
@@ -353,35 +302,16 @@ final router = GoRouter(
         GoRoute(
           path: '/transactions',
           builder: (context, state) => const TransactionScreen(),
-          routes: [
-            GoRoute(
-              path: 'add',
-              builder: (context, state) => const AddTransactionScreen(),
-            ),
-            GoRoute(
-              path: ':id',
-              builder: (context, state) => TransactionDetailScreen(
-                transactionId: state.pathParameters['id']!,
-              ),
-              routes: [
-                GoRoute(
-                  path: 'edit',
-                  builder: (context, state) => EditTransactionScreen(
-                    transactionId: state.pathParameters['id']!,
-                  ),
-                ),
-              ],
-            ),
-          ],
+        ),
+        GoRoute(
+          path: '/statistics',
+          builder: (context, state) => const StatisticsScreen(),
         ),
       ],
     ),
   ],
 );
-```
 
-### 2. MainLayout에서 글로벌 Provider 관리
-```dart
 class MainLayout extends StatelessWidget {
   final Widget child;
 
@@ -389,66 +319,137 @@ class MainLayout extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MultiProvider(
-      providers: [
-        // 레이아웃 레벨에서 필요한 ViewModel들
-        ChangeNotifierProvider(
-          create: (context) => NavigationViewModel(),
-        ),
-        ChangeNotifierProvider(
-          create: (context) => ThemeViewModel(),
-        ),
-      ],
-      child: Scaffold(
-        body: child,
-        bottomNavigationBar: Consumer<NavigationViewModel>(
-          builder: (context, navViewModel, child) {
-            return BottomNavigationBar(
-              currentIndex: navViewModel.currentIndex,
-              onTap: (index) => navViewModel.navigateToIndex(context, index),
-              items: const [
-                BottomNavigationBarItem(
-                  icon: Icon(Icons.home),
-                  label: '홈',
-                ),
-                BottomNavigationBarItem(
-                  icon: Icon(Icons.list),
-                  label: '거래',
-                ),
-                BottomNavigationBarItem(
-                  icon: Icon(Icons.pie_chart),
-                  label: '통계',
-                ),
-              ],
-            );
-          },
-        ),
+    return Scaffold(
+      body: child,
+      bottomNavigationBar: Consumer<NavigationViewModel>(
+        builder: (context, navViewModel, child) {
+          return BottomNavigationBar(
+            currentIndex: navViewModel.currentIndex,
+            onTap: (index) => navViewModel.navigateToIndex(context, index),
+            items: const [
+              BottomNavigationBarItem(
+                icon: Icon(Icons.home),
+                label: '홈',
+              ),
+              BottomNavigationBarItem(
+                icon: Icon(Icons.list),
+                label: '거래',
+              ),
+              BottomNavigationBarItem(
+                icon: Icon(Icons.pie_chart),
+                label: '통계',
+              ),
+            ],
+          );
+        },
       ),
     );
   }
 }
 ```
 
-## 라우트 가드와 인증
+### 2. 중첩 라우팅
 
-### 1. 인증 가드
+```dart
+GoRoute(
+  path: '/transactions',
+  builder: (context, state) => const TransactionScreen(),
+  routes: [
+    GoRoute(
+      path: 'add',
+      builder: (context, state) => const AddTransactionScreen(),
+    ),
+    GoRoute(
+      path: ':id',
+      builder: (context, state) => TransactionDetailScreen(
+        transactionId: state.pathParameters['id']!,
+      ),
+      routes: [
+        GoRoute(
+          path: 'edit',
+          builder: (context, state) => EditTransactionScreen(
+            transactionId: state.pathParameters['id']!,
+          ),
+        ),
+      ],
+    ),
+  ],
+)
+```
+
+---
+
+## 📋 라우팅 흐름
+
+| 단계 | 역할 |
+|:---|:---|
+| GoRouter | 전체 경로 구성 및 초기 위치 설정 |
+| Route | 경로 → Screen 연결 |
+| Screen | ChangeNotifierProvider 설정 + UI 구성 |
+| ViewModel | 상태 관리 + UseCase 호출 + 네비게이션 처리 |
+| Consumer | 상태 구독 + UI 업데이트 |
+
+---
+
+## 🔄 네비게이션 메서드
+
+### 기본 네비게이션
+
+```dart
+// 새 화면으로 이동 (스택에 추가)
+context.push('/transactions/add');
+
+// 현재 화면 교체
+context.pushReplacement('/home');
+
+// 전체 스택 교체
+context.go('/login');
+
+// 뒤로 가기
+context.pop();
+
+// 결과와 함께 뒤로 가기
+context.pop(result);
+```
+
+### Named Route 네비게이션 (선택적)
+
+```dart
+GoRoute(
+  name: 'transactionDetail',
+  path: '/transactions/:id',
+  builder: (context, state) => TransactionDetailScreen(
+    transactionId: state.pathParameters['id']!,
+  ),
+)
+
+// 사용
+context.goNamed('transactionDetail', pathParameters: {'id': transactionId});
+```
+
+---
+
+## 🔒 인증 및 라우트 가드
+
+### Redirect를 이용한 인증 처리
+
 ```dart
 final router = GoRouter(
   redirect: (context, state) {
     final authViewModel = context.read<AuthViewModel>();
     final isLoggedIn = authViewModel.isLoggedIn;
     final isLoginRoute = state.matchedLocation == '/login';
-
+    
     // 로그인이 필요한 경우
     if (!isLoggedIn && !isLoginRoute) {
       return '/login';
     }
-
+    
     // 이미 로그인된 상태에서 로그인 페이지 접근
     if (isLoggedIn && isLoginRoute) {
       return '/';
     }
-
+    
     return null; // 리다이렉션 없음
   },
   routes: [
@@ -465,70 +466,12 @@ final router = GoRouter(
 );
 ```
 
-### 2. 권한 가드
-```dart
-GoRoute(
-  path: '/admin',
-  builder: (context, state) => const AdminScreen(),
-  redirect: (context, state) {
-    final authViewModel = context.read<AuthViewModel>();
-    if (!authViewModel.isAdmin) {
-      return '/'; // 권한 없으면 홈으로
-    }
-    return null;
-  },
-)
-```
+---
 
-## 딥링크와 상태 복원
+## 📌 에러 처리
 
-### 1. 딥링크 처리
-```dart
-GoRoute(
-  path: '/transactions/:id',
-  builder: (context, state) {
-    final transactionId = state.pathParameters['id']!;
-    final queryParams = state.queryParameters;
-    
-    return TransactionDetailScreen(
-      transactionId: transactionId,
-      highlightField: queryParams['highlight'],
-    );
-  },
-)
+### 404 페이지
 
-// 사용 예시: /transactions/123?highlight=amount
-```
-
-### 2. 상태 복원을 위한 ViewModel
-```dart
-class DeeplinkViewModel extends ChangeNotifier {
-  String? _pendingRoute;
-  
-  String? get pendingRoute => _pendingRoute;
-
-  void setPendingRoute(String route) {
-    _pendingRoute = route;
-    notifyListeners();
-  }
-
-  void clearPendingRoute() {
-    _pendingRoute = null;
-    notifyListeners();
-  }
-
-  void handlePendingNavigation(BuildContext context) {
-    if (_pendingRoute != null) {
-      context.go(_pendingRoute!);
-      clearPendingRoute();
-    }
-  }
-}
-```
-
-## 에러 처리
-
-### 1. 404 페이지
 ```dart
 final router = GoRouter(
   errorBuilder: (context, state) => const NotFoundScreen(),
@@ -562,46 +505,17 @@ class NotFoundScreen extends StatelessWidget {
 }
 ```
 
-## Best Practices
+---
 
-### 1. Provider와 라우팅 분리
-- 라우팅 로직은 ViewModel에 캡슐화
-- NavigationMixin으로 공통 네비게이션 로직 추상화
-- 각 Screen에서 독립적인 Provider 설정
+## ✅ 최종 요약
 
-### 2. 상태 관리와 네비게이션
-- ViewModel에서 네비게이션 후 상태 업데이트
-- 에러 발생 시 적절한 네비게이션 처리
-- 성공 시 자동 네비게이션
+| 항목 | 요약 |
+|:---|:---|
+| Router 설정 | main.dart에서 GoRouter 설정 |
+| Route | Path → Screen 연결만 담당 |
+| Screen | ChangeNotifierProvider 설정 + UI 구성 |
+| ViewModel | 상태 관리 + UseCase 호출 + 네비게이션 처리 |
+| Navigation | ViewModel에서 NavigationMixin 사용 |
+| 확장성 | ShellRoute, 중첩 라우팅 등 고급 구조 지원 |
 
-### 3. 성능 최적화
-- 필요한 경우에만 ViewModel 생성
-- 라우트별 독립적인 Provider 설정
-- 불필요한 리빌드 방지
-
-### 4. 사용자 경험
-- 적절한 로딩 상태 표시
-- 에러 상황에서 명확한 피드백
-- 직관적인 네비게이션 흐름
-
-## 체크리스트
-
-### 라우트 설정
-- [ ] GoRouter 기본 설정
-- [ ] 중첩 라우트 구조
-- [ ] 파라미터 전달 방식
-
-### Provider 통합
-- [ ] 화면별 ChangeNotifierProvider 설정
-- [ ] 글로벌 Provider 설정
-- [ ] ViewModel에서 네비게이션 처리
-
-### 가드 및 보안
-- [ ] 인증 가드 구현
-- [ ] 권한 가드 구현
-- [ ] 적절한 리다이렉션
-
-### 에러 처리
-- [ ] 404 페이지 구현
-- [ ] 에러 상태 처리
-- [ ] 사용자 피드백 제공
+---
