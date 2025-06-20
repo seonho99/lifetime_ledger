@@ -124,7 +124,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
           builder: (context, setState) {
             return AlertDialog(
               title: const Text(
-                '거래 추가',
+                '소비 내역',
                 style: TextStyle(
                   fontFamily: 'SF Pro',
                   fontSize: 20,
