@@ -1,14 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
-class ExpenseTrackerScreen extends StatefulWidget {
-  const ExpenseTrackerScreen({Key? key}) : super(key: key);
+class HistoryScreen extends StatefulWidget {
+  const HistoryScreen({Key? key}) : super(key: key);
 
   @override
-  State<ExpenseTrackerScreen> createState() => _ExpenseTrackerScreenState();
+  State<HistoryScreen> createState() => _HistoryScreenState();
 }
 
-class _ExpenseTrackerScreenState extends State<ExpenseTrackerScreen> {
+class _HistoryScreenState extends State<HistoryScreen> {
   DateTime _currentDate = DateTime.now();
 
   // 이전 달로 이동
