@@ -1,7 +1,34 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 
-class ExpenseTrackerScreen extends StatelessWidget {
+class ExpenseTrackerScreen extends StatefulWidget {
   const ExpenseTrackerScreen({Key? key}) : super(key: key);
+
+  @override
+  State<ExpenseTrackerScreen> createState() => _ExpenseTrackerScreenState();
+}
+
+class _ExpenseTrackerScreenState extends State<ExpenseTrackerScreen> {
+  DateTime _currentDate = DateTime.now();
+
+  // 이전 달로 이동
+  void _goToPreviousMonth() {
+    setState(() {
+      _currentDate = DateTime(_currentDate.year, _currentDate.month - 1);
+    });
+  }
+
+  // 다음 달로 이동
+  void _goToNextMonth() {
+    setState(() {
+      _currentDate = DateTime(_currentDate.year, _currentDate.month + 1);
+    });
+  }
+
+  // 월 표시 포맷 (예: "2025년 5월")
+  String get _formattedMonth {
+    return DateFormat('yyyy년 M월', 'ko_KR').format(_currentDate);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -15,16 +42,30 @@ class ExpenseTrackerScreen extends StatelessWidget {
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
               child: Row(
                 children: [
-                  Container(
-                    width: 46,
-                    height: 2,
-                    color: Colors.black,
+                  // 왼쪽 화살표 (이전 달)
+                  GestureDetector(
+                    onTap: _goToPreviousMonth,
+                    child: Container(
+                      width: 46,
+                      height: 46,
+                      decoration: BoxDecoration(
+                        color: Colors.transparent,
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: const Icon(
+                        Icons.chevron_left,
+                        size: 24,
+                        color: Colors.black,
+                      ),
+                    ),
                   ),
+
+                  // 중앙 제목
                   Expanded(
                     child: Text(
-                      '2025 년 5월',
+                      _formattedMonth,
                       textAlign: TextAlign.center,
-                      style: TextStyle(
+                      style: const TextStyle(
                         fontFamily: 'SF Pro',
                         fontSize: 24,
                         fontWeight: FontWeight.w500,
@@ -32,10 +73,23 @@ class ExpenseTrackerScreen extends StatelessWidget {
                       ),
                     ),
                   ),
-                  Container(
-                    width: 46,
-                    height: 2,
-                    color: Colors.black,
+
+                  // 오른쪽 화살표 (다음 달)
+                  GestureDetector(
+                    onTap: _goToNextMonth,
+                    child: Container(
+                      width: 46,
+                      height: 46,
+                      decoration: BoxDecoration(
+                        color: Colors.transparent,
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: const Icon(
+                        Icons.chevron_right,
+                        size: 24,
+                        color: Colors.black,
+                      ),
+                    ),
                   ),
                 ],
               ),
@@ -69,8 +123,8 @@ class ExpenseTrackerScreen extends StatelessWidget {
             Container(
               margin: const EdgeInsets.only(bottom: 16),
               child: Text(
-                '이번달 총 지출: 1,000,000 원',
-                style: TextStyle(
+                '${_formattedMonth} 총 지출: 1,000,000 원',
+                style: const TextStyle(
                   fontFamily: 'SF Pro',
                   fontSize: 16,
                   fontWeight: FontWeight.w500,
@@ -115,7 +169,7 @@ class ExpenseTrackerScreen extends StatelessWidget {
       children: [
         Text(
           title,
-          style: TextStyle(
+          style: const TextStyle(
             fontFamily: 'SF Pro',
             fontSize: 18,
             fontWeight: FontWeight.w500,
@@ -136,7 +190,7 @@ class ExpenseTrackerScreen extends StatelessWidget {
   Widget _buildDateSection(String date) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-      decoration: BoxDecoration(
+      decoration: const BoxDecoration(
         border: Border(
           top: BorderSide(color: Colors.black, width: 1),
         ),
@@ -145,7 +199,7 @@ class ExpenseTrackerScreen extends StatelessWidget {
         alignment: Alignment.centerLeft,
         child: Text(
           date,
-          style: TextStyle(
+          style: const TextStyle(
             fontFamily: 'SF Pro',
             fontSize: 20,
             fontWeight: FontWeight.w500,
@@ -159,7 +213,7 @@ class ExpenseTrackerScreen extends StatelessWidget {
   Widget _buildTransactionItem(String storeName, String time, String amount) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-      decoration: BoxDecoration(
+      decoration: const BoxDecoration(
         border: Border(
           bottom: BorderSide(color: Color(0xFFCDCACA), width: 1),
         ),
@@ -170,7 +224,7 @@ class ExpenseTrackerScreen extends StatelessWidget {
           Container(
             width: 17,
             height: 17,
-            color: Color(0xFFD9D9D9),
+            color: const Color(0xFFD9D9D9),
             margin: const EdgeInsets.only(right: 20),
           ),
 
@@ -179,7 +233,7 @@ class ExpenseTrackerScreen extends StatelessWidget {
             flex: 2,
             child: Text(
               storeName,
-              style: TextStyle(
+              style: const TextStyle(
                 fontFamily: 'SF Pro',
                 fontSize: 16,
                 fontWeight: FontWeight.w500,
@@ -194,7 +248,7 @@ class ExpenseTrackerScreen extends StatelessWidget {
             child: Text(
               time,
               textAlign: TextAlign.center,
-              style: TextStyle(
+              style: const TextStyle(
                 fontFamily: 'SF Pro',
                 fontSize: 16,
                 fontWeight: FontWeight.w500,
@@ -209,7 +263,7 @@ class ExpenseTrackerScreen extends StatelessWidget {
             child: Text(
               amount,
               textAlign: TextAlign.right,
-              style: TextStyle(
+              style: const TextStyle(
                 fontFamily: 'SF Pro',
                 fontSize: 16,
                 fontWeight: FontWeight.w500,
@@ -219,18 +273,6 @@ class ExpenseTrackerScreen extends StatelessWidget {
           ),
         ],
       ),
-    );
-  }
-}
-
-// 메인 앱
-class MyApp extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-      title: '가계부 앱',
-      home: ExpenseTrackerScreen(),
-      debugShowCheckedModeBanner: false,
     );
   }
 }
