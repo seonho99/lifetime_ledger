@@ -30,8 +30,6 @@ class FailureMapper {
       return ValidationFailure(error.message);
     } else if (error is UnauthorizedException) {
       return UnauthorizedFailure(error.message);
-    } else if (error is FirebaseException) {
-      return FirebaseFailure(error.message);
     }
 
     // Firebase 예외들 (패키지의 FirebaseException 사용)

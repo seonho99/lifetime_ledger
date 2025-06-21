@@ -46,11 +46,3 @@ class UnauthorizedException extends AppException {
   @override
   String toString() => 'UnauthorizedException(message: $message)';
 }
-
-/// Firebase 예외
-class FirebaseException extends AppException {
-  const FirebaseException(String message) : super(message);
-
-  @override
-  String toString() => 'FirebaseException(message: $message)';
-}

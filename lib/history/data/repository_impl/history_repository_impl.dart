@@ -1,5 +1,4 @@
 import '../../../core/result/result.dart';
-import '../../../core/errors/failure.dart';
 import '../../../core/errors/failure_mapper.dart';
 import '../../domain/model/history.dart';
 import '../../domain/repository/history_repository.dart';
@@ -18,7 +17,7 @@ class HistoryRepositoryImpl implements HistoryRepository {
   Future<Result<List<History>>> getHistories() async {
     try {
       final historyDtos = await _dataSource.getHistories();
-      final histories = HistoryMapper.toEntityList(historyDtos);
+      final histories = historyDtos.toModelList();
 
       return Success(histories);
     } catch (e, stackTrace) {
@@ -36,7 +35,11 @@ class HistoryRepositoryImpl implements HistoryRepository {
       }
 
       final historyDto = await _dataSource.getHistoryById(id);
-      final history = HistoryMapper.toEntity(historyDto);
+      final history = historyDto.toModel();
+
+      if (history == null) {
+        return Error(ServerFailure('내역 데이터를 변환할 수 없습니다'));
+      }
 
       return Success(history);
     } catch (e, stackTrace) {
@@ -53,7 +56,7 @@ class HistoryRepositoryImpl implements HistoryRepository {
         return Error(ValidationFailure('유효하지 않은 내역 정보입니다'));
       }
 
-      final historyDto = HistoryMapper.toDto(history);
+      final historyDto = history.toDto();
       await _dataSource.addHistory(historyDto);
 
       return Success(null);
@@ -71,7 +74,7 @@ class HistoryRepositoryImpl implements HistoryRepository {
         return Error(ValidationFailure('유효하지 않은 내역 정보입니다'));
       }
 
-      final historyDto = HistoryMapper.toDto(history);
+      final historyDto = history.toDto();
       await _dataSource.updateHistory(historyDto);
 
       return Success(null);
@@ -110,7 +113,7 @@ class HistoryRepositoryImpl implements HistoryRepository {
       }
 
       final historyDtos = await _dataSource.getHistoriesByMonth(year, month);
-      final histories = HistoryMapper.toEntityList(historyDtos);
+      final histories = historyDtos.toModelList();
 
       return Success(histories);
     } catch (e, stackTrace) {
@@ -136,7 +139,7 @@ class HistoryRepositoryImpl implements HistoryRepository {
       }
 
       final historyDtos = await _dataSource.getHistoriesByDateRange(startDate, endDate);
-      final histories = HistoryMapper.toEntityList(historyDtos);
+      final histories = historyDtos.toModelList();
 
       return Success(histories);
     } catch (e, stackTrace) {
@@ -154,7 +157,7 @@ class HistoryRepositoryImpl implements HistoryRepository {
       }
 
       final historyDtos = await _dataSource.getHistoriesByCategory(categoryId);
-      final histories = HistoryMapper.toEntityList(historyDtos);
+      final histories = historyDtos.toModelList();
 
       return Success(histories);
     } catch (e, stackTrace) {
@@ -167,7 +170,7 @@ class HistoryRepositoryImpl implements HistoryRepository {
   Future<Result<double>> getTotalIncome() async {
     try {
       final historyDtos = await _dataSource.getHistories();
-      final histories = HistoryMapper.toEntityList(historyDtos);
+      final histories = historyDtos.toModelList();
 
       final totalIncome = histories
           .where((h) => h.isIncome)
@@ -185,7 +188,7 @@ class HistoryRepositoryImpl implements HistoryRepository {
   Future<Result<double>> getTotalExpense() async {
     try {
       final historyDtos = await _dataSource.getHistories();
-      final histories = HistoryMapper.toEntityList(historyDtos);
+      final histories = historyDtos.toModelList();
 
       final totalExpense = histories
           .where((h) => h.isExpense)

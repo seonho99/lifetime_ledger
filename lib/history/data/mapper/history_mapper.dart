@@ -2,17 +2,17 @@ import '../../domain/model/history.dart';
 import '../dto/history_dto.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
-/// History DTO ↔ Entity 변환 Mapper
-class HistoryMapper {
-  HistoryMapper._(); // 인스턴스 생성 방지
+/// HistoryDto -> History 변환
+extension HistoryDtoMapper on HistoryDto? {
+  History? toModel() {
+    final dto = this;
+    if (dto == null) return null;
 
-  /// DTO → Entity 변환
-  static History toEntity(HistoryDto dto) {
     return History(
       id: dto.id ?? '',
       title: dto.title ?? '',
       amount: (dto.amount ?? 0.0).toDouble(),
-      type: _mapHistoryType(dto.type),
+      type: _stringToHistoryType(dto.type),
       categoryId: dto.categoryId ?? '',
       date: dto.date ?? DateTime.now(),
       description: dto.description,
@@ -21,35 +21,8 @@ class HistoryMapper {
     );
   }
 
-  /// Entity → DTO 변환
-  static HistoryDto toDto(History entity) {
-    return HistoryDto(
-      id: entity.id,
-      title: entity.title,
-      amount: entity.amount,
-      type: _mapHistoryTypeToString(entity.type),
-      categoryId: entity.categoryId,
-      date: entity.date,
-      description: entity.description,
-      createdAt: entity.createdAt,
-      updatedAt: entity.updatedAt,
-    );
-  }
-
-  /// DTO List → Entity List 변환
-  static List<History> toEntityList(List<HistoryDto>? dtoList) {
-    if (dtoList == null || dtoList.isEmpty) return [];
-    return dtoList.map((dto) => toEntity(dto)).toList();
-  }
-
-  /// Entity List → DTO List 변환
-  static List<HistoryDto> toDtoList(List<History>? entityList) {
-    if (entityList == null || entityList.isEmpty) return [];
-    return entityList.map((entity) => toDto(entity)).toList();
-  }
-
-  /// 문자열 → HistoryType 변환
-  static HistoryType _mapHistoryType(String? type) {
+  /// 문자열을 HistoryType으로 변환하는 내부 헬퍼 메서드
+  HistoryType _stringToHistoryType(String? type) {
     switch (type?.toLowerCase()) {
       case 'income':
         return HistoryType.income;
@@ -59,26 +32,81 @@ class HistoryMapper {
         return HistoryType.expense; // 기본값
     }
   }
+}
 
-  /// HistoryType → 문자열 변환
-  static String _mapHistoryTypeToString(HistoryType type) {
-    switch (type) {
+/// History -> HistoryDto 변환
+extension HistoryMapper on History {
+  HistoryDto toDto() {
+    return HistoryDto(
+      id: id,
+      title: title,
+      amount: amount,
+      type: type.toStringValue(),
+      categoryId: categoryId,
+      date: date,
+      description: description,
+      createdAt: createdAt,
+      updatedAt: updatedAt,
+    );
+  }
+
+  /// Firebase Firestore에 저장할 Map 생성
+  Map<String, dynamic> toFirestore() {
+    return {
+      'title': title,
+      'amount': amount,
+      'type': type.toStringValue(),
+      'categoryId': categoryId,
+      'date': Timestamp.fromDate(date),
+      'description': description,
+      'createdAt': Timestamp.fromDate(createdAt),
+      'updatedAt': Timestamp.fromDate(updatedAt),
+    };
+  }
+}
+
+/// HistoryType을 문자열로 변환하는 extension
+extension HistoryTypeExtension on HistoryType {
+  String toStringValue() {
+    switch (this) {
       case HistoryType.income:
         return 'income';
       case HistoryType.expense:
         return 'expense';
     }
   }
+}
 
-  /// Firebase Firestore Document → Entity 변환
-  static History fromFirestore(DocumentSnapshot doc) {
-    final data = doc.data() as Map<String, dynamic>;
+/// List<HistoryDto> -> List<History> 변환
+extension HistoryDtoListMapper on List<HistoryDto>? {
+  List<History> toModelList() {
+    final dtoList = this;
+    if (dtoList == null || dtoList.isEmpty) return [];
+    return dtoList.map((dto) => dto.toModel()).whereType<History>().toList();
+  }
+}
+
+/// List<History> -> List<HistoryDto> 변환
+extension HistoryListMapper on List<History>? {
+  List<HistoryDto> toDtoList() {
+    final entityList = this;
+    if (entityList == null || entityList.isEmpty) return [];
+    return entityList.map((entity) => entity.toDto()).toList();
+  }
+}
+
+/// Firebase Firestore Document -> History 변환
+extension FirestoreDocumentMapper on DocumentSnapshot {
+  History? toHistoryModel() {
+    if (!exists) return null;
+
+    final data = this.data() as Map<String, dynamic>;
 
     return History(
-      id: doc.id,
+      id: id,
       title: data['title'] ?? '',
       amount: (data['amount'] ?? 0).toDouble(),
-      type: _mapHistoryType(data['type']),
+      type: _stringToHistoryType(data['type']),
       categoryId: data['categoryId'] ?? '',
       date: (data['date'] as Timestamp?)?.toDate() ?? DateTime.now(),
       description: data['description'],
@@ -87,17 +115,15 @@ class HistoryMapper {
     );
   }
 
-  /// Entity → Firebase Firestore Map 변환
-  static Map<String, dynamic> toFirestore(History entity) {
-    return {
-      'title': entity.title,
-      'amount': entity.amount,
-      'type': _mapHistoryTypeToString(entity.type),
-      'categoryId': entity.categoryId,
-      'date': Timestamp.fromDate(entity.date),
-      'description': entity.description,
-      'createdAt': Timestamp.fromDate(entity.createdAt),
-      'updatedAt': Timestamp.fromDate(entity.updatedAt),
-    };
+  /// 문자열을 HistoryType으로 변환하는 내부 헬퍼 메서드
+  HistoryType _stringToHistoryType(String? type) {
+    switch (type?.toLowerCase()) {
+      case 'income':
+        return HistoryType.income;
+      case 'expense':
+        return HistoryType.expense;
+      default:
+        return HistoryType.expense; // 기본값
+    }
   }
 }
