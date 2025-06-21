@@ -1,4 +1,5 @@
 import '../../../core/result/result.dart';
+import '../../../core/errors/failure.dart';
 import '../../../core/errors/failure_mapper.dart';
 import '../../domain/model/history.dart';
 import '../../domain/repository/history_repository.dart';

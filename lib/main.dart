@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:intl/date_symbol_data_local.dart';
-import 'package:lifetime_ledger/history/ui/history_screen.dart';
+import 'package:lifetime_ledger/history/ui/screen.dart';
 import 'firebase_options.dart';
 
 void main() async {
@@ -33,8 +33,9 @@ class MyApp extends StatelessWidget {
       locale: const Locale('ko', 'KR'),
       supportedLocales: const [
         Locale('en', 'US'),
+        Locale('ko', 'KR'),
       ],
-      home: const HistoryScreen(),
+      home: const HistoryScreen(), // 새로 만든 HistoryScreen 사용
     );
   }
 }

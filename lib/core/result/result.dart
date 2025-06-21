@@ -1,3 +1,5 @@
+import '../errors/failure.dart';
+
 /// 비동기 작업의 성공/실패를 타입 안전하게 처리하기 위한 Result 패턴
 sealed class Result<T> {
   const Result();
@@ -110,6 +112,7 @@ extension ResultExtension<T> on Result<T> {
         try {
           return Success(transform(successResult.data));
         } catch (e) {
+          // core/errors/failure.dart의 UnknownFailure 사용
           return Error(UnknownFailure('Transformation failed: $e'));
         }
       case Error<T> errorResult:
@@ -147,30 +150,4 @@ extension ResultExtension<T> on Result<T> {
     }
     return this;
   }
-}
-
-/// Failure 추상 클래스
-abstract class Failure {
-  final String message;
-  const Failure(this.message);
-
-  @override
-  bool operator ==(Object other) {
-    if (identical(this, other)) return true;
-    return other is Failure && other.message == message;
-  }
-
-  @override
-  int get hashCode => message.hashCode;
-
-  @override
-  String toString() => 'Failure(message: $message)';
-}
-
-/// 알 수 없는 오류
-class UnknownFailure extends Failure {
-  const UnknownFailure(String message) : super(message);
-
-  @override
-  String toString() => 'UnknownFailure(message: $message)';
 }
