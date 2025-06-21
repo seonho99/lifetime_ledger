@@ -3,12 +3,12 @@ import '../../../../core/errors/exceptions.dart';
 import '../dto/history_dto.dart';
 import 'history_datasource.dart';
 
-/// Firebase Firestore 기반 History DataSource
-class HistoryFirebaseDataSource implements HistoryDataSource {
+/// Firebase Firestore 기반 History DataSource 구현체
+class HistoryFirebaseDataSourceImpl implements HistoryDataSource {
   final FirebaseFirestore _firestore;
   static const String _collection = 'histories';
 
-  HistoryFirebaseDataSource({
+  HistoryFirebaseDataSourceImpl({
     required FirebaseFirestore firestore,
   }) : _firestore = firestore;
 
