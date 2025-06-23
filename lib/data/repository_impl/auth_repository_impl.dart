@@ -1,5 +1,6 @@
 import '../../../core/result/result.dart';
 import '../../../core/errors/failure_mapper.dart';
+import '../../core/errors/failure.dart';
 import '../../domain/model/user_model.dart';
 import '../../domain/repository/auth_repository.dart';
 import '../datasource/auth_datasource.dart';

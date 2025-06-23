@@ -1,11 +1,11 @@
 import 'package:json_annotation/json_annotation.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
-part 'user_dto.g.dart';
+part 'user_model_dto.g.dart';
 
 @JsonSerializable()
-class UserDto {
-  const UserDto({
+class UserModelDto {
+  const UserModelDto({
     this.id,
     this.email,
     this.displayName,
@@ -29,15 +29,15 @@ class UserDto {
   @JsonKey(name: 'updated_at')
   final DateTime? updatedAt;
 
-  factory UserDto.fromJson(Map<String, dynamic> json) =>
-      _$UserDtoFromJson(json);
+  factory UserModelDto.fromJson(Map<String, dynamic> json) =>
+      _$UserModelDtoFromJson(json);
 
-  Map<String, dynamic> toJson() => _$UserDtoToJson(this);
+  Map<String, dynamic> toJson() => _$UserModelDtoToJson(this);
 
   /// Firebase Firestore Document에서 생성
-  factory UserDto.fromFirestore(DocumentSnapshot doc) {
+  factory UserModelDto.fromFirestore(DocumentSnapshot doc) {
     final data = doc.data() as Map<String, dynamic>;
-    return UserDto(
+    return UserModelDto(
       id: doc.id,
       email: data['email'],
       displayName: data['displayName'],
@@ -59,7 +59,7 @@ class UserDto {
   }
 
   /// copyWith 메서드 (업데이트용)
-  UserDto copyWith({
+  UserModelDto copyWith({
     String? id,
     String? email,
     String? displayName,
@@ -67,7 +67,7 @@ class UserDto {
     DateTime? createdAt,
     DateTime? updatedAt,
   }) {
-    return UserDto(
+    return UserModelDto(
       id: id ?? this.id,
       email: email ?? this.email,
       displayName: displayName ?? this.displayName,
