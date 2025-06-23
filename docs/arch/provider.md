@@ -6,18 +6,18 @@
 
 - **Provider 패턴**을 통해 앱의 의존성 주입을 체계적으로 관리
 - Clean Architecture 계층별 의존성을 명확히 구분하여 관리
-- **MultiProvider**와 **ChangeNotifierProvider**를 활용한 효율적인 상태 관리
+- **main.dart에서 전역 MultiProvider**와 **Screen에서 ChangeNotifierProvider**를 활용한 효율적인 상태 관리
 - 테스트 가능성과 확장성을 고려한 의존성 구조 설계
 
 ---
 
 ## 🧱 설계 원칙
 
-- **main.dart**에서 **MultiProvider**로 전역 의존성 설정 (Repository, UseCase)
+- **main.dart**에서 **MultiProvider**로 전역 의존성 설정 (DataSource, Repository, UseCase)
 - **Screen**에서 **ChangeNotifierProvider**로 ViewModel 제공
 - 계층별 의존성은 하향식으로만 주입 (UI → UseCase → Repository → DataSource)
 - **context.read()**로 의존성 주입, **Consumer/Selector**로 상태 구독
-- Provider 생명주기는 Provider 패턴이 자동으로 관리
+- Provider 생명주기는 앱 생명주기와 연동 (전역) 또는 Screen 생명주기와 연동 (ViewModel)
 
 ---
 
@@ -29,14 +29,14 @@ lib/
 ├── features/
 │   └── {기능}/
 │       ├── data/
-│       │   ├── datasources/
-│       │   └── repositories/
+│       │   ├── datasource/
+│       │   └── repository_impl/
 │       ├── domain/
-│       │   ├── usecases/
-│       │   └── repositories/
-│       └── presentation/
-│           ├── viewmodels/
-│           └── screens/
+│       │   ├── usecase/
+│       │   └── repository/
+│       └── ui/
+│           ├── viewmodel.dart
+│           └── screen.dart
 └── core/
     └── di/
         └── injection_container.dart    # 의존성 컨테이너 (선택적)
@@ -47,7 +47,17 @@ lib/
 ## ✅ main.dart에서 전역 Provider 설정
 
 ```dart
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+
+  // Firebase 초기화
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
+
+  // 한국어 로케일 초기화
+  await initializeDateFormatting('ko_KR', null);
+
   runApp(const MyApp());
 }
 
@@ -59,88 +69,64 @@ class MyApp extends StatelessWidget {
     return MultiProvider(
       providers: [
         // Core Services
-        Provider<StorageService>(
-          create: (context) => StorageServiceImpl(),
-        ),
-
-        Provider<ApiService>(
-          create: (context) => ApiServiceImpl(),
-        ),
-
-        Provider<NetworkInfo>(
-          create: (context) => NetworkInfoImpl(),
+        Provider<FirebaseFirestore>(
+          create: (context) => FirebaseFirestore.instance,
         ),
 
         // Data Layer - DataSources
-        Provider<TransactionRemoteDataSource>(
-          create: (context) => TransactionRemoteDataSourceImpl(
-            apiService: context.read<ApiService>(),
+        Provider<HistoryDataSource>(
+          create: (context) => HistoryFirebaseDataSourceImpl(
+            firestore: context.read<FirebaseFirestore>(),
           ),
         ),
 
-        Provider<TransactionLocalDataSource>(
-          create: (context) => TransactionLocalDataSourceImpl(
-            storageService: context.read<StorageService>(),
-          ),
-        ),
-
-        Provider<CategoryRemoteDataSource>(
-          create: (context) => CategoryRemoteDataSourceImpl(
-            apiService: context.read<ApiService>(),
-          ),
-        ),
-
-        Provider<CategoryLocalDataSource>(
-          create: (context) => CategoryLocalDataSourceImpl(
-            storageService: context.read<StorageService>(),
+        Provider<CategoryDataSource>(
+          create: (context) => CategoryFirebaseDataSourceImpl(
+            firestore: context.read<FirebaseFirestore>(),
           ),
         ),
 
         // Data Layer - Repositories
-        Provider<TransactionRepository>(
-          create: (context) => TransactionRepositoryImpl(
-            remoteDataSource: context.read<TransactionRemoteDataSource>(),
-            localDataSource: context.read<TransactionLocalDataSource>(),
-            networkInfo: context.read<NetworkInfo>(),
+        Provider<HistoryRepository>(
+          create: (context) => HistoryRepositoryImpl(
+            dataSource: context.read<HistoryDataSource>(),
           ),
         ),
 
         Provider<CategoryRepository>(
           create: (context) => CategoryRepositoryImpl(
-            remoteDataSource: context.read<CategoryRemoteDataSource>(),
-            localDataSource: context.read<CategoryLocalDataSource>(),
-            networkInfo: context.read<NetworkInfo>(),
+            dataSource: context.read<CategoryDataSource>(),
           ),
         ),
 
-        // Domain Layer - UseCases (Transaction)
-        Provider<GetTransactionsUseCase>(
-          create: (context) => GetTransactionsUseCase(
-            repository: context.read<TransactionRepository>(),
+        // Domain Layer - UseCases (History)
+        Provider<GetHistoriesUseCase>(
+          create: (context) => GetHistoriesUseCase(
+            repository: context.read<HistoryRepository>(),
           ),
         ),
 
-        Provider<GetTransactionByIdUseCase>(
-          create: (context) => GetTransactionByIdUseCase(
-            repository: context.read<TransactionRepository>(),
+        Provider<GetHistoriesByMonthUseCase>(
+          create: (context) => GetHistoriesByMonthUseCase(
+            repository: context.read<HistoryRepository>(),
           ),
         ),
 
-        Provider<AddTransactionUseCase>(
-          create: (context) => AddTransactionUseCase(
-            repository: context.read<TransactionRepository>(),
+        Provider<AddHistoryUseCase>(
+          create: (context) => AddHistoryUseCase(
+            repository: context.read<HistoryRepository>(),
           ),
         ),
 
-        Provider<UpdateTransactionUseCase>(
-          create: (context) => UpdateTransactionUseCase(
-            repository: context.read<TransactionRepository>(),
+        Provider<UpdateHistoryUseCase>(
+          create: (context) => UpdateHistoryUseCase(
+            repository: context.read<HistoryRepository>(),
           ),
         ),
 
-        Provider<DeleteTransactionUseCase>(
-          create: (context) => DeleteTransactionUseCase(
-            repository: context.read<TransactionRepository>(),
+        Provider<DeleteHistoryUseCase>(
+          create: (context) => DeleteHistoryUseCase(
+            repository: context.read<HistoryRepository>(),
           ),
         ),
 
@@ -160,22 +146,29 @@ class MyApp extends StatelessWidget {
         // Domain Layer - UseCases (Statistics)
         Provider<GetExpensesByCategoryUseCase>(
           create: (context) => GetExpensesByCategoryUseCase(
-            transactionRepository: context.read<TransactionRepository>(),
+            historyRepository: context.read<HistoryRepository>(),
             categoryRepository: context.read<CategoryRepository>(),
           ),
         ),
 
         Provider<GetMonthlyReportUseCase>(
           create: (context) => GetMonthlyReportUseCase(
-            transactionRepository: context.read<TransactionRepository>(),
+            historyRepository: context.read<HistoryRepository>(),
           ),
         ),
       ],
-      child: MaterialApp.router(
+      child: MaterialApp(
         title: 'Lifetime Ledger',
-        routerConfig: router,
-        theme: AppTheme.lightTheme,
-        darkTheme: AppTheme.darkTheme,
+        theme: ThemeData(
+          colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
+          useMaterial3: true,
+        ),
+        locale: const Locale('ko', 'KR'),
+        supportedLocales: const [
+          Locale('en', 'US'),
+          Locale('ko', 'KR'),
+        ],
+        home: const HistoryScreen(),
       ),
     );
   }
@@ -189,25 +182,26 @@ class MyApp extends StatelessWidget {
 ### 기본 Screen 패턴
 
 ```dart
-class TransactionScreen extends StatelessWidget {
-  const TransactionScreen({super.key});
+class HistoryScreen extends StatelessWidget {
+  const HistoryScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
     return ChangeNotifierProvider(
-      create: (context) => TransactionViewModel(
-        getTransactionsUseCase: context.read<GetTransactionsUseCase>(),
-        addTransactionUseCase: context.read<AddTransactionUseCase>(),
-        updateTransactionUseCase: context.read<UpdateTransactionUseCase>(),
-        deleteTransactionUseCase: context.read<DeleteTransactionUseCase>(),
-      )..loadTransactions(), // 초기 데이터 로드
-      child: const TransactionView(),
+      create: (context) => HistoryViewModel(
+        getHistoriesUseCase: context.read<GetHistoriesUseCase>(),
+        getHistoriesByMonthUseCase: context.read<GetHistoriesByMonthUseCase>(),
+        addHistoryUseCase: context.read<AddHistoryUseCase>(),
+        updateHistoryUseCase: context.read<UpdateHistoryUseCase>(),
+        deleteHistoryUseCase: context.read<DeleteHistoryUseCase>(),
+      )..loadHistoriesByMonth(DateTime.now().year, DateTime.now().month), // 초기 데이터 로드
+      child: const HistoryView(),
     );
   }
 }
 
-class TransactionView extends StatelessWidget {
-  const TransactionView({super.key});
+class HistoryView extends StatelessWidget {
+  const HistoryView({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -217,11 +211,11 @@ class TransactionView extends StatelessWidget {
         actions: [
           IconButton(
             icon: const Icon(Icons.add),
-            onPressed: () => context.read<TransactionViewModel>().navigateToAdd(context),
+            onPressed: () => context.read<HistoryViewModel>().navigateToAdd(context),
           ),
         ],
       ),
-      body: Consumer<TransactionViewModel>(
+      body: Consumer<HistoryViewModel>(
         builder: (context, viewModel, child) {
           if (viewModel.isLoading) {
             return const Center(child: CircularProgressIndicator());
@@ -243,13 +237,13 @@ class TransactionView extends StatelessWidget {
           }
           
           return ListView.builder(
-            itemCount: viewModel.transactions.length,
+            itemCount: viewModel.histories.length,
             itemBuilder: (context, index) {
-              return TransactionCard(
-                transaction: viewModel.transactions[index],
+              return HistoryCard(
+                history: viewModel.histories[index],
                 onTap: () => viewModel.navigateToDetail(
                   context,
-                  viewModel.transactions[index].id,
+                  viewModel.histories[index].id,
                 ),
               );
             },
@@ -264,24 +258,24 @@ class TransactionView extends StatelessWidget {
 ### Parameter가 있는 Screen
 
 ```dart
-class TransactionDetailScreen extends StatelessWidget {
-  final String transactionId;
+class HistoryDetailScreen extends StatelessWidget {
+  final String historyId;
   
-  const TransactionDetailScreen({
+  const HistoryDetailScreen({
     super.key,
-    required this.transactionId,
+    required this.historyId,
   });
 
   @override
   Widget build(BuildContext context) {
     return ChangeNotifierProvider(
-      create: (context) => TransactionDetailViewModel(
-        transactionId: transactionId,
-        getTransactionUseCase: context.read<GetTransactionByIdUseCase>(),
-        updateTransactionUseCase: context.read<UpdateTransactionUseCase>(),
-        deleteTransactionUseCase: context.read<DeleteTransactionUseCase>(),
-      )..loadTransaction(),
-      child: const TransactionDetailView(),
+      create: (context) => HistoryDetailViewModel(
+        historyId: historyId,
+        getHistoryByIdUseCase: context.read<GetHistoryByIdUseCase>(),
+        updateHistoryUseCase: context.read<UpdateHistoryUseCase>(),
+        deleteHistoryUseCase: context.read<DeleteHistoryUseCase>(),
+      )..loadHistory(),
+      child: const HistoryDetailView(),
     );
   }
 }
@@ -292,31 +286,34 @@ class TransactionDetailScreen extends StatelessWidget {
 ## ✅ ViewModel 의존성 주입 패턴
 
 ```dart
-class TransactionViewModel extends ChangeNotifier {
-  final GetTransactionsUseCase _getTransactionsUseCase;
-  final AddTransactionUseCase _addTransactionUseCase;
-  final UpdateTransactionUseCase _updateTransactionUseCase;
-  final DeleteTransactionUseCase _deleteTransactionUseCase;
+class HistoryViewModel extends ChangeNotifier {
+  final GetHistoriesUseCase _getHistoriesUseCase;
+  final GetHistoriesByMonthUseCase _getHistoriesByMonthUseCase;
+  final AddHistoryUseCase _addHistoryUseCase;
+  final UpdateHistoryUseCase _updateHistoryUseCase;
+  final DeleteHistoryUseCase _deleteHistoryUseCase;
 
-  TransactionViewModel({
-    required GetTransactionsUseCase getTransactionsUseCase,
-    required AddTransactionUseCase addTransactionUseCase,
-    required UpdateTransactionUseCase updateTransactionUseCase,
-    required DeleteTransactionUseCase deleteTransactionUseCase,
-  }) : _getTransactionsUseCase = getTransactionsUseCase,
-       _addTransactionUseCase = addTransactionUseCase,
-       _updateTransactionUseCase = updateTransactionUseCase,
-       _deleteTransactionUseCase = deleteTransactionUseCase;
+  HistoryViewModel({
+    required GetHistoriesUseCase getHistoriesUseCase,
+    required GetHistoriesByMonthUseCase getHistoriesByMonthUseCase,
+    required AddHistoryUseCase addHistoryUseCase,
+    required UpdateHistoryUseCase updateHistoryUseCase,
+    required DeleteHistoryUseCase deleteHistoryUseCase,
+  }) : _getHistoriesUseCase = getHistoriesUseCase,
+       _getHistoriesByMonthUseCase = getHistoriesByMonthUseCase,
+       _addHistoryUseCase = addHistoryUseCase,
+       _updateHistoryUseCase = updateHistoryUseCase,
+       _deleteHistoryUseCase = deleteHistoryUseCase;
 
   // 상태 관리 로직...
   
-  Future<void> loadTransactions() async {
-    final result = await _getTransactionsUseCase();
+  Future<void> loadHistories() async {
+    final result = await _getHistoriesUseCase();
     // Result 처리...
   }
 
-  Future<void> addTransaction(Transaction transaction) async {
-    final result = await _addTransactionUseCase(transaction);
+  Future<void> addHistory(History history) async {
+    final result = await _addHistoryUseCase(history);
     // Result 처리...
   }
 }
@@ -327,15 +324,15 @@ class TransactionViewModel extends ChangeNotifier {
 ## ✅ UseCase 의존성 주입 패턴
 
 ```dart
-class GetTransactionsUseCase {
-  final TransactionRepository _repository;
+class GetHistoriesUseCase {
+  final HistoryRepository _repository;
 
-  GetTransactionsUseCase({
-    required TransactionRepository repository,
+  GetHistoriesUseCase({
+    required HistoryRepository repository,
   }) : _repository = repository;
 
-  Future<Result<List<Transaction>>> call() async {
-    return await _repository.getTransactions();
+  Future<Result<List<History>>> call() async {
+    return await _repository.getHistories();
   }
 }
 ```
@@ -345,35 +342,22 @@ class GetTransactionsUseCase {
 ## ✅ Repository 의존성 주입 패턴
 
 ```dart
-class TransactionRepositoryImpl implements TransactionRepository {
-  final TransactionRemoteDataSource _remoteDataSource;
-  final TransactionLocalDataSource _localDataSource;
-  final NetworkInfo _networkInfo;
+class HistoryRepositoryImpl implements HistoryRepository {
+  final HistoryDataSource _dataSource;
 
-  TransactionRepositoryImpl({
-    required TransactionRemoteDataSource remoteDataSource,
-    required TransactionLocalDataSource localDataSource,
-    required NetworkInfo networkInfo,
-  }) : _remoteDataSource = remoteDataSource,
-       _localDataSource = localDataSource,
-       _networkInfo = networkInfo;
+  HistoryRepositoryImpl({
+    required HistoryDataSource dataSource,
+  }) : _dataSource = dataSource;
 
   @override
-  Future<Result<List<Transaction>>> getTransactions() async {
-    if (await _networkInfo.isConnected) {
-      try {
-        final transactions = await _remoteDataSource.getTransactions();
-        return Success(transactions.map((dto) => dto.toEntity()).toList());
-      } catch (e) {
-        return Error(FailureMapper.mapExceptionToFailure(e));
-      }
-    } else {
-      try {
-        final transactions = await _localDataSource.getTransactions();
-        return Success(transactions.map((dto) => dto.toEntity()).toList());
-      } catch (e) {
-        return Error(CacheFailure('로컬 데이터를 불러올 수 없습니다'));
-      }
+  Future<Result<List<History>>> getHistories() async {
+    try {
+      final historyDtos = await _dataSource.getHistories();
+      final histories = historyDtos.toModelList();
+      return Success(histories);
+    } catch (e, stackTrace) {
+      final failure = FailureMapper.mapExceptionToFailure(e, stackTrace);
+      return Error(failure);
     }
   }
 }
@@ -387,37 +371,52 @@ class TransactionRepositoryImpl implements TransactionRepository {
 
 | Provider 타입 | 생명주기 | 사용 사례 |
 |--------------|---------|-----------|
-| **Provider** | 앱 생명주기 동안 유지 | Repository, UseCase, Service |
-| **ChangeNotifierProvider** | 화면 생명주기와 연동 | ViewModel |
+| **Provider** (전역) | 앱 생명주기 동안 유지 | Repository, UseCase, Service |
+| **ChangeNotifierProvider** (Screen) | 화면 생명주기와 연동 | ViewModel |
 | **Consumer** | 위젯 리빌드 시 호출 | 상태 구독 |
 | **Selector** | 선택된 상태 변경 시만 호출 | 성능 최적화 |
 
 ### 메모리 관리 고려사항
 
 ```dart
-// ✅ 좋은 예: 필요한 곳에서만 ViewModel 생성
-class TransactionScreen extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return ChangeNotifierProvider(
-      create: (context) => TransactionViewModel(...),
-      child: TransactionView(),
-    );
-  }
-}
-
-// ❌ 나쁜 예: 너무 상위에서 ViewModel 생성
+// ✅ 좋은 예: 전역에서 Repository, UseCase 관리
 class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MultiProvider(
       providers: [
-        // 다른 Provider들...
-        ChangeNotifierProvider(
-          create: (context) => TransactionViewModel(...), // 전역으로 생성
-        ),
+        // 전역 의존성들
+        Provider<HistoryRepository>(...),
+        Provider<GetHistoriesUseCase>(...),
       ],
       child: MaterialApp(...),
+    );
+  }
+}
+
+// ✅ 좋은 예: Screen에서 ViewModel만 관리
+class HistoryScreen extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return ChangeNotifierProvider(
+      create: (context) => HistoryViewModel(
+        getHistoriesUseCase: context.read<GetHistoriesUseCase>(),
+      ),
+      child: HistoryView(),
+    );
+  }
+}
+
+// ❌ 나쁜 예: Screen에서 Repository까지 생성
+class HistoryScreen extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return MultiProvider(
+      providers: [
+        Provider(create: (context) => HistoryRepositoryImpl(...)), // 중복 생성
+        ChangeNotifierProvider(create: (context) => HistoryViewModel(...)),
+      ],
+      child: HistoryView(),
     );
   }
 }
@@ -430,19 +429,19 @@ class MyApp extends StatelessWidget {
 ### Provider Override를 이용한 테스트
 
 ```dart
-testWidgets('TransactionScreen 위젯 테스트', (WidgetTester tester) async {
+testWidgets('HistoryScreen 위젯 테스트', (WidgetTester tester) async {
   // Mock 객체들
-  final mockRepository = MockTransactionRepository();
-  final mockUseCase = MockGetTransactionsUseCase();
+  final mockRepository = MockHistoryRepository();
+  final mockUseCase = MockGetHistoriesUseCase();
   
   await tester.pumpWidget(
     MultiProvider(
       providers: [
-        Provider<TransactionRepository>.value(value: mockRepository),
-        Provider<GetTransactionsUseCase>.value(value: mockUseCase),
+        Provider<HistoryRepository>.value(value: mockRepository),
+        Provider<GetHistoriesUseCase>.value(value: mockUseCase),
       ],
       child: MaterialApp(
-        home: TransactionScreen(),
+        home: HistoryScreen(),
       ),
     ),
   );
@@ -454,28 +453,28 @@ testWidgets('TransactionScreen 위젯 테스트', (WidgetTester tester) async {
 ### ViewModel 단위 테스트
 
 ```dart
-group('TransactionViewModel 테스트', () {
-  late TransactionViewModel viewModel;
-  late MockGetTransactionsUseCase mockUseCase;
+group('HistoryViewModel 테스트', () {
+  late HistoryViewModel viewModel;
+  late MockGetHistoriesUseCase mockUseCase;
 
   setUp(() {
-    mockUseCase = MockGetTransactionsUseCase();
-    viewModel = TransactionViewModel(
-      getTransactionsUseCase: mockUseCase,
+    mockUseCase = MockGetHistoriesUseCase();
+    viewModel = HistoryViewModel(
+      getHistoriesUseCase: mockUseCase,
       // 다른 UseCase들...
     );
   });
 
-  test('loadTransactions 성공 시 상태 업데이트', () async {
+  test('loadHistories 성공 시 상태 업데이트', () async {
     // Given
-    final transactions = [Transaction.create(...)];
-    when(() => mockUseCase()).thenAnswer((_) async => Success(transactions));
+    final histories = [History(...)];
+    when(() => mockUseCase()).thenAnswer((_) async => Success(histories));
 
     // When
-    await viewModel.loadTransactions();
+    await viewModel.loadHistories();
 
     // Then
-    expect(viewModel.transactions, equals(transactions));
+    expect(viewModel.histories, equals(histories));
     expect(viewModel.isLoading, false);
     expect(viewModel.hasError, false);
   });
@@ -489,7 +488,7 @@ group('TransactionViewModel 테스트', () {
 ```
 main.dart (MultiProvider)
     ↓
-전역 Provider 등록 (Repository, UseCase, Service)
+전역 Provider 등록 (DataSource, Repository, UseCase)
     ↓
 Screen (ChangeNotifierProvider)
     ↓
@@ -505,7 +504,7 @@ UI (Consumer/Selector)
 ## ✅ Best Practices
 
 ### 1. Provider 설정
-- **전역**: Repository, UseCase, Service (main.dart)
+- **전역**: DataSource, Repository, UseCase (main.dart)
 - **지역**: ViewModel (Screen별 ChangeNotifierProvider)
 - **접근**: read() vs watch() vs Consumer 적절히 선택
 
@@ -517,6 +516,53 @@ UI (Consumer/Selector)
 ### 3. 성능 고려사항
 - **Selector 활용**: 필요한 상태만 구독
 - **적절한 범위**: Provider를 필요한 곳에만 배치
-- **메모리 관리**: 불필요한 글로벌 Provider 생성 지양
+- **메모리 관리**: 전역 Provider는 신중하게 선택
+
+---
+
+## ✅ 복합 의존성 예시
+
+### 통계 기능 (여러 Repository 의존)
+
+```dart
+// main.dart
+Provider<GetExpensesByCategoryUseCase>(
+  create: (context) => GetExpensesByCategoryUseCase(
+    historyRepository: context.read<HistoryRepository>(),
+    categoryRepository: context.read<CategoryRepository>(),
+  ),
+),
+
+// UseCase 구현
+class GetExpensesByCategoryUseCase {
+  final HistoryRepository _historyRepository;
+  final CategoryRepository _categoryRepository;
+
+  GetExpensesByCategoryUseCase({
+    required HistoryRepository historyRepository,
+    required CategoryRepository categoryRepository,
+  }) : _historyRepository = historyRepository,
+       _categoryRepository = categoryRepository;
+
+  Future<Result<Map<String, double>>> call() async {
+    // 복합 비즈니스 로직
+    final historiesResult = await _historyRepository.getHistories();
+    final categoriesResult = await _categoryRepository.getCategories();
+    
+    // 결과 조합 및 처리...
+  }
+}
+```
+
+---
+
+## 📌 최종 요약
+
+- **main.dart**에서 전역 MultiProvider로 DataSource, Repository, UseCase 설정
+- **Screen**에서 ChangeNotifierProvider로 ViewModel만 설정
+- 의존성 흐름: DataSource → Repository → UseCase → ViewModel
+- 전역 Provider는 앱 생명주기, ViewModel Provider는 Screen 생명주기
+- 테스트 시 Provider Override 활용
+- 성능 최적화를 위해 Selector 패턴 적극 활용
 
 ---

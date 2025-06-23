@@ -1,4 +1,4 @@
-# 🏷️ 네이밍 규칙 가이드
+# 🏷️ 네이밍 규칙 가이드 (수정됨)
 
 ---
 
@@ -17,7 +17,7 @@
 - Snake case (`lower_snake_case`)와 Pascal case (`UpperCamelCase`)를 구분하여 사용한다.
 - 파일명은 모두 소문자 + 언더스코어(`_`) 기반으로 작성한다.
 - 각 계층별로 고정된 접미사 규칙을 따라야 한다. (아키텍처별 차별 및 추정 원칙)
-- Firebase 구현체 외에 API 기반 구현체는 `Impl` 접미사만 사용하며, `Api`, `Rest` 등 기술명 접두사는 금지한다.
+- Firebase 구현체는 `FirebaseDataSourceImpl` 접미사를 사용한다.
 
 ---
 
@@ -25,9 +25,9 @@
 
 ### 📁 Repository
 
-- 도메인 중심 명명: `TransactionRepository`, `CategoryRepository` 등
-- 인터페이스와 구현 클래스는 구분: `TransactionRepository`, `TransactionRepositoryImpl`
-- 파일명: `transaction_repository.dart`, `transaction_repository_impl.dart`
+- 도메인 중심 명명: `HistoryRepository`, `CategoryRepository` 등
+- 인터페이스와 구현 클래스는 구분: `HistoryRepository`, `HistoryRepositoryImpl`
+- 파일명: `history_repository.dart`, `history_repository_impl.dart`
 
 #### 📌 Repository 메서드 네이밍 규칙
 
@@ -45,27 +45,20 @@
 
 | 구분        | 클래스명 예시                    | 파일명 예시                                |
 |-------------|----------------------------------|--------------------------------------------|
-| 인터페이스  | `TransactionDataSource`          | `transaction_datasource.dart`              |
-| Remote 구현체| `TransactionRemoteDataSource`   | `transaction_remote_datasource.dart`       |
-| Local 구현체 | `TransactionLocalDataSource`    | `transaction_local_datasource.dart`        |
-| Firebase 구현체 | `TransactionFirebaseDataSource` | `transaction_firebase_datasource.dart`   |
+| 인터페이스  | `HistoryDataSource`              | `history_datasource.dart`                 |
+| Firebase 구현체 | `HistoryFirebaseDataSourceImpl` | `history_firebase_datasource_impl.dart`   |
 
-- Remote/Local로 구분하여 명명
-- Firebase만 `Firebase` 접두사를 붙인다.
+- Firebase 구현체만 `FirebaseDataSourceImpl` 접미사를 사용한다.
 - Mock 클래스는 테스트에서 교체 가능하도록 동일한 인터페이스를 구현한다.
 
 ```dart
-abstract class TransactionDataSource {
-  Future<List<TransactionDto>> getTransactions();
-  Future<void> addTransaction(TransactionDto transaction);
+abstract class HistoryDataSource {
+  Future<List<HistoryDto>> getHistories();
+  Future<void> addHistory(HistoryDto history);
 }
 
-class TransactionRemoteDataSource implements TransactionDataSource {
-  // API 호출 구현
-}
-
-class TransactionLocalDataSource implements TransactionDataSource {
-  // Local Storage 구현
+class HistoryFirebaseDataSourceImpl implements HistoryDataSource {
+  // Firebase 호출 구현
 }
 ```
 
@@ -73,7 +66,7 @@ class TransactionLocalDataSource implements TransactionDataSource {
 
 | 동작 유형     | 접두사 예시         | 설명                                      |
 |----------------|----------------------|-------------------------------------------|
-| 네트워크 호출  | `fetch`, `post`, `put`, `delete` | HTTP or Firebase 호출               |
+| Firebase 호출  | `get`, `add`, `update`, `delete` | Firebase Firestore 호출           |
 | 로컬 저장소    | `get`, `save`, `remove`    | SharedPreferences, SQLite 등   |
 
 ---
@@ -81,20 +74,34 @@ class TransactionLocalDataSource implements TransactionDataSource {
 # ✅ 2. UseCase 네이밍 및 사용 규칙
 
 - 클래스명: `{동작명}UseCase`  
-  예: `GetTransactionsUseCase`, `AddTransactionUseCase`
+  예: `GetHistoriesUseCase`, `AddHistoryUseCase`
 - 파일명: `{동작명}_usecase.dart`  
-  예: `get_transactions_usecase.dart`, `add_transaction_usecase.dart`
+  예: `get_histories_usecase.dart`, `add_history_usecase.dart`
 - 메서드는 기본적으로 `call()` 사용 (함수 객체 패턴)
 
 ```dart
-class GetTransactionsUseCase {
-  final TransactionRepository _repository;
+class GetHistoriesUseCase {
+  final HistoryRepository _repository;
 
-  GetTransactionsUseCase({required TransactionRepository repository}) 
+  GetHistoriesUseCase({required HistoryRepository repository}) 
       : _repository = repository;
 
-  Future<Result<List<Transaction>>> call() async {
-    return await _repository.getTransactions();
+  Future<Result<List<History>>> call() async {
+    return await _repository.getHistories();
+  }
+}
+
+class GetHistoriesByMonthUseCase {
+  final HistoryRepository _repository;
+
+  GetHistoriesByMonthUseCase({required HistoryRepository repository}) 
+      : _repository = repository;
+
+  Future<Result<List<History>>> call({
+    required int year,
+    required int month,
+  }) async {
+    return await _repository.getHistoriesByMonth(year, month);
   }
 }
 ```
@@ -106,35 +113,27 @@ class GetTransactionsUseCase {
 ### 📁 구성 예시
 
 ```
-presentation/
-├── states/
-│   ├── transaction_state.dart
-│   └── transaction_form_state.dart
-├── viewmodels/
-│   ├── transaction_viewmodel.dart
-│   └── transaction_form_viewmodel.dart
-├── screens/
-│   ├── transaction_screen.dart
-│   └── add_transaction_screen.dart
-└── widgets/
-    ├── transaction_card.dart
-    └── transaction_form.dart
+ui/
+├── state.dart                     # HistoryState
+├── viewmodel.dart                 # HistoryViewModel  
+├── screen.dart                    # HistoryScreen, HistoryView
+└── components.dart                # UI 컴포넌트들
 ```
 
 ### 📌 ViewModel 네이밍
 
 - 클래스명: `{기능명}ViewModel`  
-  예: `TransactionViewModel`, `TransactionListViewModel`
-- 파일명: `{기능명}_viewmodel.dart`
+  예: `HistoryViewModel`, `CategoryViewModel`
+- 파일명: `{기능명}_viewmodel.dart` → **실제로는 `viewmodel.dart`**
 - ChangeNotifier를 상속하여 구현
 
 ```dart
-class TransactionViewModel extends ChangeNotifier {
-  final GetTransactionsUseCase _getTransactionsUseCase;
+class HistoryViewModel extends ChangeNotifier {
+  final GetHistoriesUseCase _getHistoriesUseCase;
 
-  TransactionViewModel({
-    required GetTransactionsUseCase getTransactionsUseCase,
-  }) : _getTransactionsUseCase = getTransactionsUseCase;
+  HistoryViewModel({
+    required GetHistoriesUseCase getHistoriesUseCase,
+  }) : _getHistoriesUseCase = getHistoriesUseCase;
 
   // 상태 관리 로직
 }
@@ -143,49 +142,75 @@ class TransactionViewModel extends ChangeNotifier {
 ### 📌 State 네이밍
 
 - 클래스명: `{기능명}State`  
-  예: `TransactionState`, `TransactionFormState`
-- 파일명: `{기능명}_state.dart`
+  예: `HistoryState`, `CategoryState`
+- 파일명: `{기능명}_state.dart` → **실제로는 `state.dart`**
 - freezed를 사용하여 불변 객체로 구현
 
 ```dart
 @freezed
-sealed class TransactionState with _$TransactionState {
-  TransactionState({
-    required this.transactions,
+class HistoryState with _$HistoryState {
+  const HistoryState({
+    required this.histories,
     required this.isLoading,
     this.errorMessage,
+    this.selectedMonth,
+    this.selectedYear,
+    this.filterType,
   });
 
-  final List<Transaction> transactions;
+  final List<History> histories;
   final bool isLoading;
   final String? errorMessage;
+  final int? selectedMonth;
+  final int? selectedYear;
+  final HistoryType? filterType;
 }
 ```
 
 ### 📌 Screen 네이밍
 
-- 클래스명: `{기능명}Screen`  
-  예: `TransactionScreen`, `AddTransactionScreen`
-- 파일명: `{기능명}_screen.dart`
-- ChangeNotifierProvider 설정과 UI를 분리
+- 클래스명: `{기능명}Screen`, `{기능명}View`  
+  예: `HistoryScreen`, `HistoryView`
+- 파일명: `{기능명}_screen.dart` → **실제로는 `screen.dart`**
+- MultiProvider 설정과 UI를 분리
 
 ```dart
-class TransactionScreen extends StatelessWidget {
+class HistoryScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
-    return ChangeNotifierProvider(
-      create: (context) => TransactionViewModel(
-        getTransactionsUseCase: context.read<GetTransactionsUseCase>(),
-      ),
-      child: const TransactionView(),
+    return MultiProvider(
+      providers: [
+        // DataSource
+        Provider(
+          create: (context) => HistoryFirebaseDataSourceImpl(
+            firestore: FirebaseFirestore.instance,
+          ),
+        ),
+        
+        // Repository
+        Provider<HistoryRepository>(
+          create: (context) => HistoryRepositoryImpl(
+            dataSource: context.read<HistoryFirebaseDataSourceImpl>(),
+          ),
+        ),
+        
+        // UseCases
+        Provider(create: (context) => GetHistoriesUseCase(...)),
+        
+        // ViewModel
+        ChangeNotifierProvider(
+          create: (context) => HistoryViewModel(...),
+        ),
+      ],
+      child: const HistoryView(),
     );
   }
 }
 
-class TransactionView extends StatelessWidget {
+class HistoryView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
-    return Consumer<TransactionViewModel>(
+    return Consumer<HistoryViewModel>(
       builder: (context, viewModel, child) {
         // UI 구현
       },
@@ -197,7 +222,7 @@ class TransactionView extends StatelessWidget {
 ### 📌 Widget 네이밍
 
 - **기능명 접두사 필수**
-    - `transaction_card.dart`, `transaction_summary.dart`
+  - `history_card.dart`, `history_summary.dart`
 - 단순 역할명 (`card.dart`, `summary.dart`) 지양
 - 공통 요소가 되지 않은 위젯은 각 기능 폴더 내에 위치
 
@@ -211,15 +236,23 @@ class TransactionView extends StatelessWidget {
 - 변경 불가능한 구조로 불변성 유지
 
 ```dart
-class TransactionRepositoryImpl implements TransactionRepository {
-  final TransactionRemoteDataSource _remoteDataSource;
-  final TransactionLocalDataSource _localDataSource;
+class HistoryRepositoryImpl implements HistoryRepository {
+  final HistoryDataSource _dataSource;
 
-  TransactionRepositoryImpl({
-    required TransactionRemoteDataSource remoteDataSource,
-    required TransactionLocalDataSource localDataSource,
-  }) : _remoteDataSource = remoteDataSource,
-       _localDataSource = localDataSource;
+  HistoryRepositoryImpl({
+    required HistoryDataSource dataSource,
+  }) : _dataSource = dataSource;
+}
+
+class HistoryViewModel extends ChangeNotifier {
+  final GetHistoriesUseCase _getHistoriesUseCase;
+  final AddHistoryUseCase _addHistoryUseCase;
+
+  HistoryViewModel({
+    required GetHistoriesUseCase getHistoriesUseCase,
+    required AddHistoryUseCase addHistoryUseCase,
+  }) : _getHistoriesUseCase = getHistoriesUseCase,
+       _addHistoryUseCase = addHistoryUseCase;
 }
 ```
 
@@ -227,52 +260,159 @@ class TransactionRepositoryImpl implements TransactionRepository {
 
 # ✅ 5. Provider 설정 및 상태 객체 명명
 
-- Provider 설정은 main.dart의 MultiProvider에서 관리
+- Provider 설정은 각 Screen의 MultiProvider에서 관리
 - ChangeNotifierProvider는 각 Screen에서 설정
 - Consumer/Selector로 상태 구독
 
 ```dart
-// main.dart - 전역 Provider 설정
+// history/ui/screen.dart - Provider 설정
 MultiProvider(
   providers: [
-    Provider<TransactionRepository>(
-      create: (context) => TransactionRepositoryImpl(...),
+    Provider<HistoryRepository>(
+      create: (context) => HistoryRepositoryImpl(...),
     ),
-    Provider<GetTransactionsUseCase>(
-      create: (context) => GetTransactionsUseCase(
-        repository: context.read<TransactionRepository>(),
+    Provider<GetHistoriesUseCase>(
+      create: (context) => GetHistoriesUseCase(
+        repository: context.read<HistoryRepository>(),
+      ),
+    ),
+    ChangeNotifierProvider<HistoryViewModel>(
+      create: (context) => HistoryViewModel(
+        getHistoriesUseCase: context.read<GetHistoriesUseCase>(),
       ),
     ),
   ],
-  child: MyApp(),
+  child: HistoryView(),
 )
+```
 
-// Screen - ViewModel Provider 설정
-ChangeNotifierProvider<TransactionViewModel>(
-  create: (context) => TransactionViewModel(
-    getTransactionsUseCase: context.read<GetTransactionsUseCase>(),
-  ),
-  child: TransactionView(),
-)
+---
+
+# ✅ 6. Mapper 네이밍 (Extension 방식)
+
+- 파일명: `{entity_name}_mapper.dart`
+- Extension 방식으로 구현
+
+```dart
+/// HistoryDto -> History 변환
+extension HistoryDtoMapper on HistoryDto? {
+  History? toModel() {
+    // DTO → Entity 변환 로직
+  }
+}
+
+/// History -> HistoryDto 변환
+extension HistoryMapper on History {
+  HistoryDto toDto() {
+    // Entity → DTO 변환 로직
+  }
+}
+
+/// List 변환
+extension HistoryDtoListMapper on List<HistoryDto>? {
+  List<History> toModelList() {
+    // List 변환 로직
+  }
+}
+```
+
+---
+
+# ✅ 7. DTO 네이밍
+
+- 클래스명: `{EntityName}Dto`
+- 파일명: `{entity_name}_dto.dart`
+- json_serializable 사용
+
+```dart
+@JsonSerializable()
+class HistoryDto {
+  const HistoryDto({
+    this.id,
+    this.title,
+    this.amount,
+    this.type,
+    this.categoryId,
+    this.date,
+    this.description,
+    this.createdAt,
+    this.updatedAt,
+  });
+
+  final String? id;
+  final String? title;
+  final num? amount;
+  final String? type;
+  final String? categoryId;
+  final DateTime? date;
+  final String? description;
+  final DateTime? createdAt;
+  final DateTime? updatedAt;
+}
 ```
 
 ---
 
 # ✅ 네이밍 요약표
 
-| 항목           | 예시                              | 설명                                    |
-|----------------|---------------------------------|-----------------------------------------|
-| Entity         | `Transaction`                   | 도메인 모델                              |
-| Repository (Interface) | `TransactionRepository`    | Repository 인터페이스                    |
-| Repository (Impl) | `TransactionRepositoryImpl` | Repository 구현체                        |
-| DataSource     | `TransactionRemoteDataSource`   | Remote/Local/Firebase 구분              |
-| UseCase        | `GetTransactionsUseCase`        | 비즈니스 단위 로직                      |
-| ViewModel      | `TransactionViewModel`          | ChangeNotifier 기반 상태 관리           |
-| State          | `TransactionState`              | freezed 기반 상태 클래스                |
-| Screen         | `TransactionScreen`             | ChangeNotifierProvider 설정 + UI       |
-| Widget         | `transaction_card.dart`         | 기능 접두사 필수                         |
-| DTO            | `TransactionDto`                | 데이터 전송 객체                         |
-| Mapper         | `TransactionMapper`             | DTO ↔ Entity 변환                       |
-| 생성자 필드    | `_repository`                   | final + 프라이빗 + required 주입        |
+| 항목           | 예시                              | 파일명                              |
+|----------------|---------------------------------|------------------------------------|
+| Entity         | `History`                       | `history.dart`                     |
+| Repository (Interface) | `HistoryRepository`    | `history_repository.dart`          |
+| Repository (Impl) | `HistoryRepositoryImpl`     | `history_repository_impl.dart`     |
+| DataSource (Interface) | `HistoryDataSource`     | `history_datasource.dart`          |
+| DataSource (Impl) | `HistoryFirebaseDataSourceImpl` | `history_firebase_datasource_impl.dart` |
+| UseCase        | `GetHistoriesUseCase`           | `get_histories_usecase.dart`        |
+| ViewModel      | `HistoryViewModel`              | `viewmodel.dart`                    |
+| State          | `HistoryState`                  | `state.dart`                        |
+| Screen         | `HistoryScreen`, `HistoryView`  | `screen.dart`                       |
+| DTO            | `HistoryDto`                    | `history_dto.dart`                  |
+| Mapper         | `HistoryMapper` (Extension)     | `history_mapper.dart`               |
+| 생성자 필드    | `_repository`                   | final + 프라이빗 + required 주입    |
+
+---
+
+# ✅ 실제 사용 예시
+
+## 기능 추가 시 파일 생성 순서
+
+1. **Domain Layer**
+   ```
+   history/domain/model/history.dart              → History
+   history/domain/repository/history_repository.dart → HistoryRepository
+   history/domain/usecase/get_histories_usecase.dart → GetHistoriesUseCase
+   ```
+
+2. **Data Layer**
+   ```
+   history/data/dto/history_dto.dart              → HistoryDto
+   history/data/mapper/history_mapper.dart        → Extension Mappers
+   history/data/datasource/history_datasource.dart → HistoryDataSource
+   history/data/datasource/history_firebase_datasource_impl.dart → HistoryFirebaseDataSourceImpl
+   history/data/repository_impl/history_repository_impl.dart → HistoryRepositoryImpl
+   ```
+
+3. **UI Layer**
+   ```
+   history/ui/state.dart                          → HistoryState
+   history/ui/viewmodel.dart                      → HistoryViewModel
+   history/ui/screen.dart                         → HistoryScreen, HistoryView
+   ```
+
+## Import 예시
+
+```dart
+// ViewModel에서의 import
+import '../domain/model/history.dart';
+import '../domain/usecase/get_histories_usecase.dart';
+import '../domain/usecase/add_history_usecase.dart';
+import 'state.dart';
+
+// Repository에서의 import  
+import '../../domain/model/history.dart';
+import '../../domain/repository/history_repository.dart';
+import '../datasource/history_datasource.dart';
+import '../mapper/history_mapper.dart';
+```
 
 ---

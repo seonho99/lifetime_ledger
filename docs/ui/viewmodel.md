@@ -27,48 +27,48 @@ UI 상태 관리와 비즈니스 로직 실행을 담당합니다.
 # ⚙️ 기본 구조 예시
 
 ```dart
-class TransactionViewModel extends ChangeNotifier {
-  final GetTransactionsUseCase _getTransactionsUseCase;
-  final AddTransactionUseCase _addTransactionUseCase;
-  final UpdateTransactionUseCase _updateTransactionUseCase;
-  final DeleteTransactionUseCase _deleteTransactionUseCase;
+class HistoryViewModel extends ChangeNotifier {
+  final GetHistoriesUseCase _getHistoriesUseCase;
+  final AddHistoryUseCase _addHistoryUseCase;
+  final UpdateHistoryUseCase _updateHistoryUseCase;
+  final DeleteHistoryUseCase _deleteHistoryUseCase;
 
-  TransactionViewModel({
-    required GetTransactionsUseCase getTransactionsUseCase,
-    required AddTransactionUseCase addTransactionUseCase,
-    required UpdateTransactionUseCase updateTransactionUseCase,
-    required DeleteTransactionUseCase deleteTransactionUseCase,
-  }) : _getTransactionsUseCase = getTransactionsUseCase,
-       _addTransactionUseCase = addTransactionUseCase,
-       _updateTransactionUseCase = updateTransactionUseCase,
-       _deleteTransactionUseCase = deleteTransactionUseCase;
+  HistoryViewModel({
+    required GetHistoriesUseCase getHistoriesUseCase,
+    required AddHistoryUseCase addHistoryUseCase,
+    required UpdateHistoryUseCase updateHistoryUseCase,
+    required DeleteHistoryUseCase deleteHistoryUseCase,
+  }) : _getHistoriesUseCase = getHistoriesUseCase,
+        _addHistoryUseCase = addHistoryUseCase,
+        _updateHistoryUseCase = updateHistoryUseCase,
+        _deleteHistoryUseCase = deleteHistoryUseCase;
 
   // 상태 관리
-  TransactionState _state = TransactionState.initial();
-  TransactionState get state => _state;
+  HistoryState _state = HistoryState.initial();
+  HistoryState get state => _state;
 
   // 편의 Getters
-  List<Transaction> get transactions => _state.transactions;
+  List<History> get histories => _state.histories;
   bool get isLoading => _state.isLoading;
   bool get hasError => _state.errorMessage != null;
   String? get errorMessage => _state.errorMessage;
 
   // 상태 업데이트
-  void _updateState(TransactionState newState) {
+  void _updateState(HistoryState newState) {
     _state = newState;
     notifyListeners();
   }
 
-  // 비즈니스 메서드
-  Future<void> loadTransactions() async {
+  // 비즈니스 메서드 - Result.when() 패턴 사용
+  Future<void> loadHistories() async {
     _updateState(_state.copyWith(isLoading: true, errorMessage: null));
-    
-    final result = await _getTransactionsUseCase();
-    
+
+    final result = await _getHistoriesUseCase();
+
     result.when(
-      success: (transactions) {
+      success: (histories) {
         _updateState(_state.copyWith(
-          transactions: transactions,
+          histories: histories,
           isLoading: false,
           errorMessage: null,
         ));
@@ -82,28 +82,30 @@ class TransactionViewModel extends ChangeNotifier {
     );
   }
 
-  Future<void> addTransaction(Transaction transaction) async {
-    final result = await _addTransactionUseCase(transaction);
-    
+  Future<void> addHistory(History history) async {
+    final result = await _addHistoryUseCase(history);
+
     result.when(
       success: (_) {
         // 성공 시 목록 새로고침
-        loadTransactions();
+        loadHistories();
       },
       error: (failure) {
-        _updateState(_state.copyWith(errorMessage: failure.message));
+        _updateState(_state.copyWith(errorMessage: _getErrorMessage(failure)));
       },
     );
   }
 
   String _getErrorMessage(Failure failure) {
-    switch (failure.runtimeType) {
-      case NetworkFailure:
-        return '인터넷 연결을 확인해주세요.';
-      case ServerFailure:
-        return '서버 오류가 발생했습니다.';
-      default:
-        return failure.message;
+    // FailureMapper 타입 확인 메서드 활용
+    if (FailureMapper.isNetworkError(failure)) {
+      return '인터넷 연결을 확인해주세요.';
+    } else if (FailureMapper.isServerError(failure)) {
+      return '서버 오류가 발생했습니다.';
+    } else if (FailureMapper.isValidationError(failure)) {
+      return failure.message;
+    } else {
+      return '알 수 없는 오류가 발생했습니다.';
     }
   }
 
@@ -113,14 +115,15 @@ class TransactionViewModel extends ChangeNotifier {
 
   void retryLastAction() {
     clearError();
-    loadTransactions();
+    loadHistories();
   }
 }
 ```
 
 ✅ `ChangeNotifier`를 상속하여 상태 변경을 UI에 알립니다.  
 ✅ 생성자에서 UseCase들을 주입받습니다.  
-✅ 데이터 호출은 반드시 UseCase를 통해 수행합니다.
+✅ 데이터 호출은 반드시 UseCase를 통해 수행합니다.  
+✅ **Result.when() 패턴**으로 성공/실패를 명확히 처리합니다.
 
 ---
 
@@ -129,18 +132,16 @@ class TransactionViewModel extends ChangeNotifier {
 ```text
 lib/
 └── features/
-    └── transaction/
-        └── presentation/
-            ├── viewmodels/
-            │   └── transaction_viewmodel.dart
-            └── states/
-                └── transaction_state.dart
+    └── history/
+        └── ui/
+            ├── viewmodel.dart
+            └── state.dart
 ```
 
 | 항목 | 규칙 |
 |:---|:---|
-| 파일 경로 | `lib/features/{기능}/presentation/viewmodels/` |
-| 파일명 | `{기능}_viewmodel.dart` |
+| 파일 경로 | `lib/features/{기능}/ui/` |
+| 파일명 | `viewmodel.dart` |
 | 클래스명 | `{기능}ViewModel` |
 
 ---
@@ -150,16 +151,16 @@ lib/
 ## ✅ 기본 초기화
 
 ```dart
-class TransactionViewModel extends ChangeNotifier {
-  TransactionViewModel({
-    required GetTransactionsUseCase getTransactionsUseCase,
-  }) : _getTransactionsUseCase = getTransactionsUseCase;
+class HistoryViewModel extends ChangeNotifier {
+  HistoryViewModel({
+    required GetHistoriesUseCase getHistoriesUseCase,
+  }) : _getHistoriesUseCase = getHistoriesUseCase;
 
-  TransactionState _state = TransactionState.initial();
+  HistoryState _state = HistoryState.initial();
   
   // 초기 데이터 로드는 Screen에서 호출
   Future<void> initialize() async {
-    await loadTransactions();
+    await loadHistories();
   }
 }
 ```
@@ -167,15 +168,15 @@ class TransactionViewModel extends ChangeNotifier {
 ## ✅ Screen에서 ViewModel 사용
 
 ```dart
-class TransactionScreen extends StatelessWidget {
+class HistoryScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ChangeNotifierProvider(
-      create: (context) => TransactionViewModel(
-        getTransactionsUseCase: context.read<GetTransactionsUseCase>(),
-        addTransactionUseCase: context.read<AddTransactionUseCase>(),
-      )..loadTransactions(), // 초기 데이터 로드
-      child: const TransactionView(),
+      create: (context) => HistoryViewModel(
+        getHistoriesUseCase: context.read<GetHistoriesUseCase>(),
+        addHistoryUseCase: context.read<AddHistoryUseCase>(),
+      )..loadHistories(), // 초기 데이터 로드
+      child: const HistoryView(),
     );
   }
 }
@@ -188,41 +189,17 @@ class TransactionScreen extends StatelessWidget {
 ## ✅ State 객체 기반 관리
 
 ```dart
-class TransactionViewModel extends ChangeNotifier {
-  TransactionState _state = TransactionState.initial();
-  TransactionState get state => _state;
+class HistoryViewModel extends ChangeNotifier {
+  HistoryState _state = HistoryState.initial();
+  HistoryState get state => _state;
 
   // 편의 Getters (선택적)
-  List<Transaction> get transactions => _state.transactions;
+  List<History> get histories => _state.histories;
   bool get isLoading => _state.isLoading;
   bool get hasError => _state.errorMessage != null;
 
-  void _updateState(TransactionState newState) {
+  void _updateState(HistoryState newState) {
     _state = newState;
-    notifyListeners();
-  }
-}
-```
-
-## ✅ 개별 속성 관리 (간단한 경우)
-
-```dart
-class SimpleViewModel extends ChangeNotifier {
-  bool _isLoading = false;
-  String? _errorMessage;
-  List<Item> _items = [];
-
-  bool get isLoading => _isLoading;
-  String? get errorMessage => _errorMessage;
-  List<Item> get items => _items;
-
-  void _setLoading(bool loading) {
-    _isLoading = loading;
-    notifyListeners();
-  }
-
-  void _setError(String? error) {
-    _errorMessage = error;
     notifyListeners();
   }
 }
@@ -235,10 +212,10 @@ class SimpleViewModel extends ChangeNotifier {
 ## ✅ Consumer 패턴
 
 ```dart
-class TransactionView extends StatelessWidget {
+class HistoryView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
-    return Consumer<TransactionViewModel>(
+    return Consumer<HistoryViewModel>(
       builder: (context, viewModel, child) {
         if (viewModel.hasError) {
           return ErrorWidget(message: viewModel.errorMessage!);
@@ -248,7 +225,7 @@ class TransactionView extends StatelessWidget {
           return const LoadingWidget();
         }
         
-        return TransactionList(transactions: viewModel.transactions);
+        return HistoryList(histories: viewModel.histories);
       },
     );
   }
@@ -259,7 +236,7 @@ class TransactionView extends StatelessWidget {
 
 ```dart
 // 특정 상태만 구독
-Selector<TransactionViewModel, bool>(
+Selector<HistoryViewModel, bool>(
   selector: (context, viewModel) => viewModel.isLoading,
   builder: (context, isLoading, child) {
     return isLoading 
@@ -269,9 +246,9 @@ Selector<TransactionViewModel, bool>(
 )
 
 // 복합 상태 구독
-Selector<TransactionViewModel, ({int count, double total})>(
+Selector<HistoryViewModel, ({int count, double total})>(
   selector: (context, viewModel) => (
-    count: viewModel.transactions.length,
+    count: viewModel.histories.length,
     total: viewModel.totalAmount,
   ),
   builder: (context, data, child) {
@@ -301,30 +278,30 @@ mixin NavigationMixin {
   }
 }
 
-class TransactionViewModel extends ChangeNotifier with NavigationMixin {
+class HistoryViewModel extends ChangeNotifier with NavigationMixin {
   // ... 다른 코드
 
-  void navigateToDetail(BuildContext context, String transactionId) {
-    navigateTo(context, '/transactions/$transactionId');
+  void navigateToDetail(BuildContext context, String historyId) {
+    navigateTo(context, '/histories/$historyId');
   }
 
   void navigateToAdd(BuildContext context) {
-    navigateTo(context, '/transactions/add');
+    navigateTo(context, '/histories/add');
   }
 
-  Future<void> addTransactionAndNavigateBack(
+  Future<void> addHistoryAndNavigateBack(
     BuildContext context, 
-    Transaction transaction,
+    History history,
   ) async {
-    final result = await _addTransactionUseCase(transaction);
+    final result = await _addHistoryUseCase(history);
     
     result.when(
       success: (_) {
-        loadTransactions();
+        loadHistories();
         navigateBack(context);
       },
       error: (failure) {
-        _updateState(_state.copyWith(errorMessage: failure.message));
+        _updateState(_state.copyWith(errorMessage: _getErrorMessage(failure)));
       },
     );
   }
@@ -338,17 +315,17 @@ class TransactionViewModel extends ChangeNotifier with NavigationMixin {
 ## ✅ 폼 상태 관리
 
 ```dart
-class AddTransactionViewModel extends ChangeNotifier {
-  final AddTransactionUseCase _addTransactionUseCase;
+class AddHistoryViewModel extends ChangeNotifier {
+  final AddHistoryUseCase _addHistoryUseCase;
 
-  AddTransactionViewModel({
-    required AddTransactionUseCase addTransactionUseCase,
-  }) : _addTransactionUseCase = addTransactionUseCase;
+  AddHistoryViewModel({
+    required AddHistoryUseCase addHistoryUseCase,
+  }) : _addHistoryUseCase = addHistoryUseCase;
 
   // 폼 상태
   String _title = '';
   double _amount = 0.0;
-  TransactionType _type = TransactionType.expense;
+  HistoryType _type = HistoryType.expense;
   String? _selectedCategoryId;
   DateTime _date = DateTime.now();
   bool _isLoading = false;
@@ -357,7 +334,7 @@ class AddTransactionViewModel extends ChangeNotifier {
   // Getters
   String get title => _title;
   double get amount => _amount;
-  TransactionType get type => _type;
+  HistoryType get type => _type;
   String? get selectedCategoryId => _selectedCategoryId;
   DateTime get date => _date;
   bool get isLoading => _isLoading;
@@ -380,7 +357,7 @@ class AddTransactionViewModel extends ChangeNotifier {
     notifyListeners();
   }
 
-  void updateType(TransactionType type) {
+  void updateType(HistoryType type) {
     _type = type;
     notifyListeners();
   }
@@ -406,15 +383,18 @@ class AddTransactionViewModel extends ChangeNotifier {
     _errorMessage = null;
     notifyListeners();
 
-    final transaction = Transaction.create(
+    final history = History(
+      id: DateTime.now().millisecondsSinceEpoch.toString(),
       title: _title,
       amount: _amount,
       type: _type,
       categoryId: _selectedCategoryId!,
       date: _date,
+      createdAt: DateTime.now(),
+      updatedAt: DateTime.now(),
     );
 
-    final result = await _addTransactionUseCase(transaction);
+    final result = await _addHistoryUseCase(history);
 
     result.when(
       success: (_) {
@@ -424,16 +404,26 @@ class AddTransactionViewModel extends ChangeNotifier {
       },
       error: (failure) {
         _isLoading = false;
-        _errorMessage = failure.message;
+        _errorMessage = _getErrorMessage(failure);
         notifyListeners();
       },
     );
   }
 
+  String _getErrorMessage(Failure failure) {
+    if (FailureMapper.isValidationError(failure)) {
+      return failure.message;
+    } else if (FailureMapper.isNetworkError(failure)) {
+      return '인터넷 연결을 확인해주세요.';
+    } else {
+      return '저장 중 오류가 발생했습니다.';
+    }
+  }
+
   void reset() {
     _title = '';
     _amount = 0.0;
-    _type = TransactionType.expense;
+    _type = HistoryType.expense;
     _selectedCategoryId = null;
     _date = DateTime.now();
     _errorMessage = null;
@@ -445,14 +435,14 @@ class AddTransactionViewModel extends ChangeNotifier {
 ## ✅ 리스트 관리 (페이지네이션)
 
 ```dart
-class TransactionListViewModel extends ChangeNotifier {
-  final GetTransactionsUseCase _getTransactionsUseCase;
+class HistoryListViewModel extends ChangeNotifier {
+  final GetHistoriesUseCase _getHistoriesUseCase;
 
-  TransactionListViewModel({
-    required GetTransactionsUseCase getTransactionsUseCase,
-  }) : _getTransactionsUseCase = getTransactionsUseCase;
+  HistoryListViewModel({
+    required GetHistoriesUseCase getHistoriesUseCase,
+  }) : _getHistoriesUseCase = getHistoriesUseCase;
 
-  List<Transaction> _transactions = [];
+  List<History> _histories = [];
   bool _isLoading = false;
   bool _isLoadingMore = false;
   bool _hasMore = true;
@@ -460,18 +450,18 @@ class TransactionListViewModel extends ChangeNotifier {
   String? _errorMessage;
 
   // Getters
-  List<Transaction> get transactions => _transactions;
+  List<History> get histories => _histories;
   bool get isLoading => _isLoading;
   bool get isLoadingMore => _isLoadingMore;
   bool get hasMore => _hasMore;
   bool get hasError => _errorMessage != null;
   String? get errorMessage => _errorMessage;
 
-  Future<void> loadTransactions({bool refresh = false}) async {
+  Future<void> loadHistories({bool refresh = false}) async {
     if (refresh) {
       _currentPage = 1;
       _hasMore = true;
-      _transactions.clear();
+      _histories.clear();
     }
 
     _isLoading = refresh;
@@ -479,24 +469,24 @@ class TransactionListViewModel extends ChangeNotifier {
     _errorMessage = null;
     notifyListeners();
 
-    final result = await _getTransactionsUseCase(page: _currentPage);
+    final result = await _getHistoriesUseCase(page: _currentPage);
 
     result.when(
-      success: (newTransactions) {
+      success: (newHistories) {
         if (refresh) {
-          _transactions = newTransactions;
+          _histories = newHistories;
         } else {
-          _transactions.addAll(newTransactions);
+          _histories.addAll(newHistories);
         }
 
-        _hasMore = newTransactions.length >= 20; // 페이지 크기
+        _hasMore = newHistories.length >= 20; // 페이지 크기
         _currentPage++;
         _isLoading = false;
         _isLoadingMore = false;
         notifyListeners();
       },
       error: (failure) {
-        _errorMessage = failure.message;
+        _errorMessage = _getErrorMessage(failure);
         _isLoading = false;
         _isLoadingMore = false;
         notifyListeners();
@@ -506,11 +496,21 @@ class TransactionListViewModel extends ChangeNotifier {
 
   Future<void> loadMore() async {
     if (!_hasMore || _isLoadingMore) return;
-    await loadTransactions();
+    await loadHistories();
   }
 
   Future<void> refresh() async {
-    await loadTransactions(refresh: true);
+    await loadHistories(refresh: true);
+  }
+
+  String _getErrorMessage(Failure failure) {
+    if (FailureMapper.isNetworkError(failure)) {
+      return '인터넷 연결을 확인해주세요.';
+    } else if (FailureMapper.isServerError(failure)) {
+      return '서버 오류가 발생했습니다.';
+    } else {
+      return '데이터를 불러오는 중 오류가 발생했습니다.';
+    }
   }
 }
 ```
@@ -520,14 +520,14 @@ class TransactionListViewModel extends ChangeNotifier {
 # 🧪 테스트 전략
 
 ```dart
-group('TransactionViewModel 테스트', () {
-  late TransactionViewModel viewModel;
-  late MockGetTransactionsUseCase mockGetTransactionsUseCase;
+group('HistoryViewModel 테스트', () {
+  late HistoryViewModel viewModel;
+  late MockGetHistoriesUseCase mockGetHistoriesUseCase;
 
   setUp(() {
-    mockGetTransactionsUseCase = MockGetTransactionsUseCase();
-    viewModel = TransactionViewModel(
-      getTransactionsUseCase: mockGetTransactionsUseCase,
+    mockGetHistoriesUseCase = MockGetHistoriesUseCase();
+    viewModel = HistoryViewModel(
+      getHistoriesUseCase: mockGetHistoriesUseCase,
     );
   });
 
@@ -536,34 +536,34 @@ group('TransactionViewModel 테스트', () {
   });
 
   test('초기 상태가 올바르게 설정됨', () {
-    expect(viewModel.transactions, isEmpty);
+    expect(viewModel.histories, isEmpty);
     expect(viewModel.isLoading, false);
     expect(viewModel.hasError, false);
   });
 
-  test('loadTransactions 성공 시 상태 업데이트', () async {
+  test('loadHistories 성공 시 상태 업데이트', () async {
     // Given
-    final transactions = [Transaction.create(...)];
-    when(() => mockGetTransactionsUseCase())
-        .thenAnswer((_) async => Success(transactions));
+    final histories = [History(...)];
+    when(() => mockGetHistoriesUseCase())
+        .thenAnswer((_) async => Success(histories));
 
     // When
-    await viewModel.loadTransactions();
+    await viewModel.loadHistories();
 
     // Then
-    expect(viewModel.transactions, equals(transactions));
+    expect(viewModel.histories, equals(histories));
     expect(viewModel.isLoading, false);
     expect(viewModel.hasError, false);
   });
 
-  test('loadTransactions 실패 시 에러 상태 설정', () async {
+  test('loadHistories 실패 시 에러 상태 설정', () async {
     // Given
     final failure = NetworkFailure('네트워크 오류');
-    when(() => mockGetTransactionsUseCase())
+    when(() => mockGetHistoriesUseCase())
         .thenAnswer((_) async => Error(failure));
 
     // When
-    await viewModel.loadTransactions();
+    await viewModel.loadHistories();
 
     // Then
     expect(viewModel.hasError, true);
@@ -592,8 +592,10 @@ group('TransactionViewModel 테스트', () {
 - ViewModel은 ChangeNotifier를 상속하여 상태를 관리합니다.
 - 생성자에서 UseCase들을 주입받습니다.
 - 모든 상태 변경 후 notifyListeners()를 호출합니다.
+- **Result.when() 패턴**으로 성공/실패를 명확히 처리합니다.
 - Consumer/Selector로 UI에서 상태를 구독합니다.
 - 네비게이션은 Mixin을 활용하여 처리합니다.
 - 테스트는 상태 변화 중심으로 수행합니다.
+- **FailureMapper의 타입 확인 메서드**를 활용하여 에러 메시지를 분류합니다.
 
 ---

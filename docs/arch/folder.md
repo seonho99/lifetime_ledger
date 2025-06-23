@@ -38,27 +38,26 @@ lib/
 │   └── utils/
 ├── history/                         # 거래 내역 기능
 │   ├── data/
-│   │   ├── data_source/            # DataSource 구현체들
-│   │   │   ├── transaction_remote_datasource.dart
-│   │   │   ├── transaction_local_datasource.dart
-│   │   │   └── transaction_firebase_datasource.dart
+│   │   ├── datasource/             # DataSource 구현체들
+│   │   │   ├── history_datasource.dart
+│   │   │   └── history_firebase_datasource_impl.dart
 │   │   ├── dto/                    # DTO 모델들
-│   │   │   ├── transaction_dto.dart
-│   │   │   └── transaction_response_dto.dart
+│   │   │   └── history_dto.dart
 │   │   ├── mapper/                 # DTO ↔ Model 변환
-│   │   │   └── transaction_mapper.dart
+│   │   │   └── history_mapper.dart
 │   │   └── repository_impl/        # Repository 구현체
-│   │       └── transaction_repository_impl.dart
+│   │       └── history_repository_impl.dart
 │   ├── domain/
 │   │   ├── model/                  # 도메인 모델
-│   │   │   └── transaction.dart
+│   │   │   └── history.dart
 │   │   ├── repository/             # Repository 인터페이스
-│   │   │   └── transaction_repository.dart
+│   │   │   └── history_repository.dart
 │   │   └── usecase/                # UseCase들
-│   │       ├── get_transactions_usecase.dart
-│   │       ├── add_transaction_usecase.dart
-│   │       ├── update_transaction_usecase.dart
-│   │       └── delete_transaction_usecase.dart
+│   │       ├── get_histories_usecase.dart
+│   │       ├── add_history_usecase.dart
+│   │       ├── update_history_usecase.dart
+│   │       ├── delete_history_usecase.dart
+│   │       └── get_histories_by_month_usecase.dart
 │   └── ui/
 │       ├── state.dart              # State 객체 (freezed)
 │       ├── viewmodel.dart          # ViewModel (ChangeNotifier)
@@ -72,7 +71,7 @@ lib/
 │   ├── data/
 │   ├── domain/
 │   └── ui/
-└── main.dart                       # MultiProvider 설정
+└── main.dart                       # Firebase 초기화 + 앱 실행
 ```
 
 ---
@@ -82,16 +81,16 @@ lib/
 | 폴더                     | 설명                                         |
 |------------------------|------------------------------------------|
 | `core/`                | 앱 전체에서 사용하는 핵심 유틸리티, 상수, 테마 등           |
-| `data/data_source/`    | 외부 API, Firebase, SharedPreferences 등 연결   |
+| `data/datasource/`    | 외부 API, Firebase, SharedPreferences 등 연결   |
 | `data/repository_impl/`| Repository 인터페이스의 실제 구현                   |
 | `data/dto/`            | 서버와 통신하는 DTO (Data Transfer Object)       |
-| `data/mapper/`         | DTO ↔ Model 변환 로직                        |
+| `data/mapper/`         | DTO ↔ Model 변환 로직 (Extension 방식)           |
 | `domain/model/`        | 앱 내부에서 사용하는 도메인 모델 정의                    |
 | `domain/repository/`   | UseCase에서 참조하는 Repository 인터페이스           |
 | `domain/usecase/`      | 하나의 도메인 기능을 수행하는 유스케이스                   |
 | `ui/state.dart`        | freezed 기반 불변 상태 객체                       |
 | `ui/viewmodel.dart`    | ChangeNotifier 기반 ViewModel             |
-| `ui/screen.dart`       | ChangeNotifierProvider 설정 + UI           |
+| `ui/screen.dart`       | MultiProvider 설정 + UI                   |
 | `ui/components.dart`   | 재사용 가능한 UI 컴포넌트                          |
 
 ---
@@ -109,7 +108,7 @@ Repository Interface (domain/repository/)
     ↓
 Repository Implementation (data/repository_impl/)
     ↓
-DataSource (data/data_source/)
+DataSource (data/datasource/)
 ```
 
 ---
@@ -119,32 +118,30 @@ DataSource (data/data_source/)
 ### Data Layer
 ```
 # DataSource
-transaction_remote_datasource.dart     # Remote DataSource
-transaction_local_datasource.dart      # Local DataSource
-transaction_firebase_datasource.dart   # Firebase DataSource
+history_datasource.dart                  # DataSource 인터페이스
+history_firebase_datasource_impl.dart    # Firebase DataSource 구현체
 
 # DTO
-transaction_dto.dart                    # DTO 모델
-transaction_response_dto.dart          # API 응답 DTO
+history_dto.dart                         # DTO 모델
 
 # Mapper
-transaction_mapper.dart                 # 매퍼
+history_mapper.dart                      # Extension 방식 매퍼
 
 # Repository Implementation
-transaction_repository_impl.dart       # Repository 구현
+history_repository_impl.dart            # Repository 구현
 ```
 
 ### Domain Layer
 ```
 # Model
-transaction.dart                        # Entity
+history.dart                            # Entity
 
 # Repository Interface
-transaction_repository.dart            # Repository 인터페이스
+history_repository.dart                 # Repository 인터페이스
 
 # UseCase
-get_transactions_usecase.dart          # UseCase
-add_transaction_usecase.dart           # UseCase
+get_histories_usecase.dart              # UseCase
+add_history_usecase.dart                # UseCase
 ```
 
 ### UI Layer
@@ -161,47 +158,66 @@ components.dart                       # UI 컴포넌트들
 
 ```dart
 // main.dart
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  
+  // Firebase 초기화
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
+  
+  // 익명 로그인 (테스트용)
+  await FirebaseAuth.instance.signInAnonymously();
+  
   runApp(const MyApp());
 }
 
 class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      title: 'Lifetime Ledger',
+      home: const HistoryScreen(),
+    );
+  }
+}
+```
 
+---
+
+## ✅ Screen별 Provider 구조
+
+```dart
+// history/ui/screen.dart
+class HistoryScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MultiProvider(
       providers: [
-        // Core Services
-        Provider<StorageService>(
-          create: (context) => StorageServiceImpl(),
+        // DataSource
+        Provider(
+          create: (context) => HistoryFirebaseDataSourceImpl(
+            firestore: FirebaseFirestore.instance,
+          ),
         ),
         
-        // DataSources
-        Provider<TransactionRemoteDataSource>(
-          create: (context) => TransactionFirebaseDataSource(),
-        ),
-        
-        // Repositories
-        Provider<TransactionRepository>(
-          create: (context) => TransactionRepositoryImpl(
-            remoteDataSource: context.read<TransactionRemoteDataSource>(),
+        // Repository
+        Provider<HistoryRepository>(
+          create: (context) => HistoryRepositoryImpl(
+            dataSource: context.read<HistoryFirebaseDataSourceImpl>(),
           ),
         ),
         
         // UseCases
-        Provider<GetTransactionsUseCase>(
-          create: (context) => GetTransactionsUseCase(
-            repository: context.read<TransactionRepository>(),
-          ),
-        ),
+        Provider(create: (context) => GetHistoriesUseCase(...)),
+        Provider(create: (context) => AddHistoryUseCase(...)),
         
-        // ... 다른 UseCase들
+        // ViewModel
+        ChangeNotifierProvider(
+          create: (context) => HistoryViewModel(...)..loadHistoriesByMonth(...),
+        ),
       ],
-      child: MaterialApp(
-        title: 'Lifetime Ledger',
-        home: const HistoryScreen(),
-      ),
+      child: const HistoryView(),
     );
   }
 }
@@ -217,27 +233,27 @@ class MyApp extends StatelessWidget {
 3. **각 레이어에 필요한 하위 폴더 생성**
 4. **기존 구조를 템플릿으로 활용**
 
-### 예시: Budget 기능 추가
+### 예시: Category 기능 추가
 ```
 lib/
-├── budget/
+├── category/
 │   ├── data/
-│   │   ├── data_source/
-│   │   │   └── budget_firebase_datasource.dart
+│   │   ├── datasource/
+│   │   │   └── category_firebase_datasource_impl.dart
 │   │   ├── dto/
-│   │   │   └── budget_dto.dart
+│   │   │   └── category_dto.dart
 │   │   ├── mapper/
-│   │   │   └── budget_mapper.dart
+│   │   │   └── category_mapper.dart
 │   │   └── repository_impl/
-│   │       └── budget_repository_impl.dart
+│   │       └── category_repository_impl.dart
 │   ├── domain/
 │   │   ├── model/
-│   │   │   └── budget.dart
+│   │   │   └── category.dart
 │   │   ├── repository/
-│   │   │   └── budget_repository.dart
+│   │   │   └── category_repository.dart
 │   │   └── usecase/
-│   │       ├── get_budgets_usecase.dart
-│   │       └── add_budget_usecase.dart
+│   │       ├── get_categories_usecase.dart
+│   │       └── add_category_usecase.dart
 │   └── ui/
 │       ├── state.dart
 │       ├── viewmodel.dart
@@ -265,6 +281,8 @@ lib/
 - 특정 기능 수정 시 해당 폴더만 집중
 - 의존성 흐름이 명확함
 
+### 5. **Firebase 통합**
+- Firebase Authentication과 Firestore 자연스럽게 통합
+- 보안 규칙과 연동 가능
+
 ---
-
-

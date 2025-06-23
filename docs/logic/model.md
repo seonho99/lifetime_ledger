@@ -14,7 +14,7 @@ ViewModel, UseCase, Repository 등에서 공통적으로 사용되며,
 - 불변성(Immutable) 유지
 - **필수값은 `required`**, 선택값은 `nullable` 처리
 - API 기반 DTO와는 분리하며, 필요 시 Mapper를 통해 변환
-- **freezed 3.0 최신 방식**으로 직접 constructor를 작성 (sealed class + 일반 생성자)
+- **Freezed 3.0 최신 방식**으로 일반 class + 일반 생성자 사용
 - **비즈니스 로직** 포함 (계산된 속성, 검증 메서드, 상태 확인 등)
 
 ---
@@ -52,9 +52,7 @@ enum TransactionType {
 
 /// 거래 도메인 모델
 @freezed
-sealed class Transaction with _$Transaction {
-  const Transaction._();
-
+class Transaction with _$Transaction {
   Transaction({
     required this.id,
     required this.title,
@@ -156,6 +154,48 @@ sealed class Transaction with _$Transaction {
 
 ---
 
+## 📌 Freezed 3.0 주요 변경 사항
+
+### 1. 기본 구조
+```dart
+// ❌ Freezed 2.x (구버전)
+@freezed
+sealed class Transaction with _$Transaction {
+  const Transaction._();
+
+  const factory Transaction({
+    required String id,
+    required String title,
+    // ...
+  }) = _Transaction;
+}
+
+// ✅ Freezed 3.0 (신버전)
+@freezed
+class Transaction with _$Transaction {
+  Transaction({
+    required this.id,
+    required this.title,
+    // ...
+  });
+
+  final String id;
+  final String title;
+  // ...
+}
+```
+
+### 2. 핵심 차이점
+
+| 항목 | Freezed 2.x | Freezed 3.0 |
+|------|-------------|-------------|
+| 클래스 선언 | `sealed class` | `class` |
+| 생성자 | `const factory` | 일반 생성자 |
+| private 생성자 | `const ClassName._()` | 불필요 |
+| 필드 선언 | 생성자 파라미터만 | `final` 필드 명시 |
+
+---
+
 ## 📌 설계 팁
 
 ### 1. 비즈니스 로직 포함
@@ -222,7 +262,75 @@ group('Transaction Entity 테스트', () {
       throwsA(isA<ArgumentError>()),
     );
   });
+
+  test('copyWith로 필드 업데이트', () {
+    // Given
+    final original = Transaction.create(
+      title: '커피',
+      amount: 4500.0,
+      type: TransactionType.expense,
+      categoryId: 'food',
+      date: DateTime.now(),
+    );
+
+    // When
+    final updated = original.copyWith(title: '아메리카노');
+
+    // Then
+    expect(updated.title, '아메리카노');
+    expect(updated.amount, 4500.0); // 다른 필드는 유지
+    expect(updated.id, original.id); // ID는 동일
+  });
 });
 ```
+
+---
+
+## 🆚 Migration 가이드
+
+### 기존 코드를 Freezed 3.0으로 마이그레이션
+
+```dart
+// Before (Freezed 2.x)
+@freezed
+sealed class Transaction with _$Transaction {
+  const Transaction._();
+
+  const factory Transaction({
+    required String id,
+    required String title,
+    required double amount,
+  }) = _Transaction;
+
+  bool get isValid => amount > 0 && title.isNotEmpty;
+}
+
+// After (Freezed 3.0)
+@freezed
+class Transaction with _$Transaction {
+  Transaction({
+    required this.id,
+    required this.title,
+    required this.amount,
+  });
+
+  final String id;
+  final String title;
+  final double amount;
+
+  bool get isValid => amount > 0 && title.isNotEmpty;
+}
+```
+
+---
+
+## ✅ 문서 요약
+
+- 모든 Model은 Freezed 3.0 문법으로 작성합니다.
+- `sealed class` 대신 일반 `class`를 사용합니다.
+- `const factory` 대신 일반 생성자를 사용합니다.
+- 필드는 `final`로 명시적 선언합니다.
+- 비즈니스 로직과 검증은 메서드로 포함합니다.
+- 불변성은 `copyWith`로 유지합니다.
 
 ---

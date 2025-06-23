@@ -15,7 +15,7 @@ Mapper를 통해 변환해서 사용합니다.
 - **숫자형은 `num` 기본 사용**: API에서 `int`/`double` 구분이 불명확한 경우 대비
 - `fromJson`, `toJson` 메서드 포함
 - `@JsonKey`로 snake_case → camelCase 매핑 대응
-- **중첩/리스트 구조 포함 시 `explicitToJson: true`를 설정하여 명시적으로 JSON 변환**
+- **Firebase 통합**: `fromFirestore`, `toFirestore` 메서드 제공
 - **json_serializable 사용**: @JsonSerializable 어노테이션 활용
 
 ---
@@ -24,19 +24,121 @@ Mapper를 통해 변환해서 사용합니다.
 
 | 항목 | 규칙 |
 |------|------|
-| 파일 경로 | `lib/features/{기능}/data/models/` |
-| 파일명 | `{entity_name}_dto.dart` (예: `transaction_dto.dart`) |
-| 클래스명 | PascalCase + `Dto` 접미사 (예: `TransactionDto`) |
+| 파일 경로 | `lib/features/{기능}/data/dto/` |
+| 파일명 | `{entity_name}_dto.dart` (예: `history_dto.dart`) |
+| 클래스명 | PascalCase + `Dto` 접미사 (예: `HistoryDto`) |
 | codegen 파일 | `.g.dart` 자동 생성 (`json_serializable` 사용 시) |
 
 ---
 
 ## ✅ 기본 DTO 예시
 
-### Transaction DTO
+### History DTO (실제 구현)
 
 ```dart
 import 'package:json_annotation/json_annotation.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+
+part 'history_dto.g.dart';
+
+@JsonSerializable()
+class HistoryDto {
+  const HistoryDto({
+    this.id,
+    this.title,
+    this.amount,
+    this.type,
+    this.categoryId,
+    this.date,
+    this.description,
+    this.createdAt,
+    this.updatedAt,
+  });
+
+  final String? id;
+  final String? title;
+  final num? amount;
+  final String? type;
+
+  @JsonKey(name: 'category_id')
+  final String? categoryId;
+
+  final DateTime? date;
+  final String? description;
+
+  @JsonKey(name: 'created_at')
+  final DateTime? createdAt;
+
+  @JsonKey(name: 'updated_at')
+  final DateTime? updatedAt;
+
+  factory HistoryDto.fromJson(Map<String, dynamic> json) => 
+      _$HistoryDtoFromJson(json);
+
+  Map<String, dynamic> toJson() => _$HistoryDtoToJson(this);
+
+  /// Firebase Firestore Document에서 생성
+  factory HistoryDto.fromFirestore(DocumentSnapshot doc) {
+    final data = doc.data() as Map<String, dynamic>;
+    return HistoryDto(
+      id: doc.id,
+      title: data['title'],
+      amount: data['amount'],
+      type: data['type'],
+      categoryId: data['categoryId'],
+      date: (data['date'] as Timestamp?)?.toDate(),
+      description: data['description'],
+      createdAt: (data['createdAt'] as Timestamp?)?.toDate(),
+      updatedAt: (data['updatedAt'] as Timestamp?)?.toDate(),
+    );
+  }
+
+  /// Firebase Firestore에 저장할 Map 생성
+  Map<String, dynamic> toFirestore() {
+    return {
+      'title': title,
+      'amount': amount,
+      'type': type,
+      'categoryId': categoryId,
+      'date': date != null ? Timestamp.fromDate(date!) : null,
+      'description': description,
+      'createdAt': createdAt != null ? Timestamp.fromDate(createdAt!) : null,
+      'updatedAt': updatedAt != null ? Timestamp.fromDate(updatedAt!) : null,
+    };
+  }
+
+  /// copyWith 메서드 (업데이트용)
+  HistoryDto copyWith({
+    String? id,
+    String? title,
+    num? amount,
+    String? type,
+    String? categoryId,
+    DateTime? date,
+    String? description,
+    DateTime? createdAt,
+    DateTime? updatedAt,
+  }) {
+    return HistoryDto(
+      id: id ?? this.id,
+      title: title ?? this.title,
+      amount: amount ?? this.amount,
+      type: type ?? this.type,
+      categoryId: categoryId ?? this.categoryId,
+      date: date ?? this.date,
+      description: description ?? this.description,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+    );
+  }
+}
+```
+
+### Transaction DTO (확장 예시)
+
+```dart
+import 'package:json_annotation/json_annotation.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 part 'transaction_dto.g.dart';
 
@@ -137,13 +239,13 @@ class TransactionDto {
 
 ```dart
 import 'package:json_annotation/json_annotation.dart';
-import 'transaction_dto.dart';
+import 'history_dto.dart';
 
-part 'transaction_response_dto.g.dart';
+part 'history_response_dto.g.dart';
 
 @JsonSerializable(explicitToJson: true)
-class TransactionResponseDto {
-  const TransactionResponseDto({
+class HistoryResponseDto {
+  const HistoryResponseDto({
     this.success,
     this.message,
     this.data,
@@ -152,13 +254,13 @@ class TransactionResponseDto {
 
   final bool? success;
   final String? message;
-  final List<TransactionDto>? data;
+  final List<HistoryDto>? data;
   final PaginationDto? pagination;
 
-  factory TransactionResponseDto.fromJson(Map<String, dynamic> json) => 
-      _$TransactionResponseDtoFromJson(json);
+  factory HistoryResponseDto.fromJson(Map<String, dynamic> json) => 
+      _$HistoryResponseDtoFromJson(json);
 
-  Map<String, dynamic> toJson() => _$TransactionResponseDtoToJson(this);
+  Map<String, dynamic> toJson() => _$HistoryResponseDtoToJson(this);
 }
 
 @JsonSerializable()
@@ -193,6 +295,7 @@ class PaginationDto {
 
 ```dart
 import 'package:json_annotation/json_annotation.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 part 'category_dto.g.dart';
 
@@ -283,16 +386,16 @@ class CategoryDto {
 
 ```dart
 // ❌ 잘못된 사용 - ViewModel에서 DTO 직접 사용
-class TransactionViewModel extends ChangeNotifier {
-  List<TransactionDto> transactions = []; // 잘못됨!
+class HistoryViewModel extends ChangeNotifier {
+  List<HistoryDto> histories = []; // 잘못됨!
 }
 
 // ✅ 올바른 사용 - Repository에서 변환 후 Entity 사용
-class TransactionRepositoryImpl implements TransactionRepository {
+class HistoryRepositoryImpl implements HistoryRepository {
   @override
-  Future<Result<List<Transaction>>> getTransactions() async {
-    final dtos = await _remoteDataSource.getTransactions();
-    final entities = TransactionMapper.toEntityList(dtos); // DTO → Entity 변환
+  Future<Result<List<History>>> getHistories() async {
+    final dtos = await _dataSource.getHistories();
+    final entities = dtos.toModelList(); // DTO → Entity 변환
     return Success(entities);
   }
 }
@@ -302,16 +405,58 @@ class TransactionRepositoryImpl implements TransactionRepository {
 
 ---
 
+## ✅ Firebase 통합 특화
+
+### 1. **Firestore 전용 메서드**
+```dart
+/// Firebase 전용 생성자
+factory HistoryDto.fromFirestore(DocumentSnapshot doc) {
+  final data = doc.data() as Map<String, dynamic>;
+  return HistoryDto(
+    id: doc.id, // 문서 ID 자동 매핑
+    // ... 필드 매핑
+  );
+}
+
+/// Firebase 전용 저장 메서드
+Map<String, dynamic> toFirestore() {
+  return {
+    // Timestamp 변환 포함
+    'date': date != null ? Timestamp.fromDate(date!) : null,
+    // ... 다른 필드들
+  };
+}
+```
+
+### 2. **Timestamp 처리**
+```dart
+// Firestore Timestamp ↔ DateTime 변환
+date: (data['date'] as Timestamp?)?.toDate(),
+createdAt: (data['createdAt'] as Timestamp?)?.toDate(),
+```
+
+### 3. **필드명 매핑**
+```dart
+// JSON API용 (snake_case)
+@JsonKey(name: 'category_id')
+final String? categoryId;
+
+// Firestore용 (camelCase) - toFirestore에서 처리
+'categoryId': categoryId,
+```
+
+---
+
 ## ✅ 기타 고려사항
 
 | 항목 | 설명 |
 |:---|:---|
 | **불완전한 응답 대비** | 모든 필드를 `nullable`로 선언 |
-| **서버 응답 필드명 다름** | `@JsonKey(name: "snake_case")` 활용 |
-| **리스트/중첩 구조** | `List<SubDto>?`, `SubDto.fromJson()`을 통해 변환. `toJson` 시 `@JsonSerializable(explicitToJson: true)` 설정 필요 |
+| **Firebase 우선** | `fromFirestore`, `toFirestore` 메서드 우선 제공 |
+| **JSON API 호환** | `fromJson`, `toJson` 메서드로 REST API 대응 |
 | **숫자 타입 안전성** | API에서 int/double이 혼재할 수 있으므로 `num` 사용 |
-| **Firebase 대응** | `fromFirestore()`, `toFirestore()` 메서드 별도 제공 |
 | **copyWith 지원** | 업데이트 작업을 위한 copyWith 메서드 제공 |
+| **Timestamp 변환** | Firebase Timestamp와 DateTime 간 자동 변환 |
 
 ---
 
@@ -321,8 +466,8 @@ class TransactionRepositoryImpl implements TransactionRepository {
 
 ```dart
 @JsonSerializable(explicitToJson: true)
-class TransactionWithCategoryDto {
-  const TransactionWithCategoryDto({
+class HistoryWithCategoryDto {
+  const HistoryWithCategoryDto({
     this.id,
     this.title,
     this.amount,
@@ -336,10 +481,10 @@ class TransactionWithCategoryDto {
   final CategoryDto? category;
   final List<TagDto>? tags;
 
-  factory TransactionWithCategoryDto.fromJson(Map<String, dynamic> json) => 
-      _$TransactionWithCategoryDtoFromJson(json);
+  factory HistoryWithCategoryDto.fromJson(Map<String, dynamic> json) => 
+      _$HistoryWithCategoryDtoFromJson(json);
 
-  Map<String, dynamic> toJson() => _$TransactionWithCategoryDtoToJson(this);
+  Map<String, dynamic> toJson() => _$HistoryWithCategoryDtoToJson(this);
 }
 
 @JsonSerializable()
@@ -370,7 +515,7 @@ class TagDto {
 ### DTO 직렬화/역직렬화 테스트
 
 ```dart
-group('TransactionDto 테스트', () {
+group('HistoryDto 테스트', () {
   test('fromJson으로 JSON에서 DTO 생성', () {
     // Given
     final json = {
@@ -383,7 +528,7 @@ group('TransactionDto 테스트', () {
     };
 
     // When
-    final dto = TransactionDto.fromJson(json);
+    final dto = HistoryDto.fromJson(json);
 
     // Then
     expect(dto.id, '1');
@@ -395,7 +540,7 @@ group('TransactionDto 테스트', () {
 
   test('toJson으로 DTO를 JSON으로 변환', () {
     // Given
-    final dto = TransactionDto(
+    final dto = HistoryDto(
       id: '1',
       title: '커피',
       amount: 4500,
@@ -414,6 +559,27 @@ group('TransactionDto 테스트', () {
     expect(json['category_id'], 'food');
   });
 
+  test('Firebase Firestore 변환 테스트', () {
+    // Given
+    final dto = HistoryDto(
+      title: '커피',
+      amount: 4500,
+      type: 'expense',
+      categoryId: 'food',
+      date: DateTime(2024, 1, 15),
+    );
+
+    // When
+    final firestoreMap = dto.toFirestore();
+
+    // Then
+    expect(firestoreMap['title'], '커피');
+    expect(firestoreMap['amount'], 4500);
+    expect(firestoreMap['type'], 'expense');
+    expect(firestoreMap['categoryId'], 'food');
+    expect(firestoreMap['date'], isA<Timestamp>());
+  });
+
   test('null 값이 포함된 JSON도 안전하게 처리', () {
     // Given
     final json = <String, dynamic>{
@@ -423,7 +589,7 @@ group('TransactionDto 테스트', () {
     };
 
     // When
-    final dto = TransactionDto.fromJson(json);
+    final dto = HistoryDto.fromJson(json);
 
     // Then
     expect(dto.id, null);
@@ -432,5 +598,23 @@ group('TransactionDto 테스트', () {
   });
 });
 ```
+
+---
+
+## 📋 실제 구현과의 차이점
+
+### 1. **파일명 변경**
+- `transaction_dto.dart` → `history_dto.dart` (실제 구현에 맞춤)
+
+### 2. **Firebase 우선**
+- `fromFirestore`, `toFirestore` 메서드를 기본 제공
+- Timestamp 변환 로직 포함
+
+### 3. **copyWith 메서드**
+- 실제 구현에서 사용하는 업데이트 패턴 반영
+
+### 4. **필드명 일관성**
+- 실제 Firebase 필드명과 일치 (camelCase)
+- JSON API용 snake_case 매핑 유지
 
 ---
