@@ -3,9 +3,14 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/date_symbol_data_local.dart';
+import 'package:lifetime_ledger/domain/model/history.dart';
 import 'package:provider/provider.dart';
+import 'package:go_router/go_router.dart';
 
 import 'firebase_options.dart';
+
+// Core Router
+import 'core/route/router.dart';
 
 // Auth DataSource & Repository
 import 'data/datasource/auth_datasource_impl.dart';
@@ -34,10 +39,12 @@ import 'domain/usecase/update_history_usecase.dart';
 import 'domain/usecase/delete_history_usecase.dart';
 import 'domain/usecase/get_histories_by_month_usecase.dart';
 
-// UI
+// Global ViewModels
 import 'ui/auth/auth_viewmodel.dart';
-import 'ui/history/history_screen.dart';
-import 'ui/auth/auth_screen.dart';
+
+
+
+
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -75,83 +82,69 @@ class MyApp extends StatelessWidget {
         // ========================================
 
         // Auth DataSource
-        Provider(
-          create: (context) => AuthFirebaseDataSourceImpl(
+        Provider<AuthDataSourceImpl>(
+          create: (context) => AuthDataSourceImpl(
             firebaseAuth: context.read<FirebaseAuth>(),
-            firestore: context.read<FirebaseFirestore>(),
           ),
         ),
 
         // Auth Repository
         Provider<AuthRepository>(
           create: (context) => AuthRepositoryImpl(
-            dataSource: context.read<AuthFirebaseDataSourceImpl>(),
+            authDataSource: context.read<AuthDataSourceImpl>(),
           ),
         ),
 
         // Auth UseCases
-        Provider(
+        Provider<SignInUseCase>(
           create: (context) => SignInUseCase(
             repository: context.read<AuthRepository>(),
           ),
         ),
-        Provider(
+        Provider<SignUpUseCase>(
           create: (context) => SignUpUseCase(
             repository: context.read<AuthRepository>(),
           ),
         ),
-        Provider(
+        Provider<SignOutUseCase>(
           create: (context) => SignOutUseCase(
             repository: context.read<AuthRepository>(),
           ),
         ),
-        Provider(
+        Provider<SendPasswordResetEmailUseCase>(
           create: (context) => SendPasswordResetEmailUseCase(
             repository: context.read<AuthRepository>(),
           ),
         ),
-        Provider(
+        // 새로 추가: ChangePasswordUseCase
+        Provider<ChangePasswordUseCase>(
           create: (context) => ChangePasswordUseCase(
             repository: context.read<AuthRepository>(),
           ),
         ),
-        Provider(
+        Provider<UpdateProfileUseCase>(
           create: (context) => UpdateProfileUseCase(
             repository: context.read<AuthRepository>(),
           ),
         ),
-        Provider(
+        Provider<SendEmailVerificationUseCase>(
           create: (context) => SendEmailVerificationUseCase(
             repository: context.read<AuthRepository>(),
           ),
         ),
-        Provider(
+        Provider<DeleteAccountUseCase>(
           create: (context) => DeleteAccountUseCase(
             repository: context.read<AuthRepository>(),
           ),
         ),
 
-        // Auth ViewModel
-        ChangeNotifierProvider(
-          create: (context) => AuthViewModel(
-            signInUseCase: context.read<SignInUseCase>(),
-            signUpUseCase: context.read<SignUpUseCase>(),
-            signOutUseCase: context.read<SignOutUseCase>(),
-            sendPasswordResetEmailUseCase: context.read<SendPasswordResetEmailUseCase>(),
-            changePasswordUseCase: context.read<ChangePasswordUseCase>(),
-            updateProfileUseCase: context.read<UpdateProfileUseCase>(),
-            sendEmailVerificationUseCase: context.read<SendEmailVerificationUseCase>(),
-            deleteAccountUseCase: context.read<DeleteAccountUseCase>(),
-          ),
-        ),
-
         // ========================================
-        // History Layer (기존)
+        // History Layer
         // ========================================
 
         // History DataSource
-        Provider(
-          create: (context) => HistoryFirebaseDataSourceImpl(
+        Provider<HistoryDataSourceImpl>(
+          create: (context) => HistoryDataSourceImpl(
             firestore: context.read<FirebaseFirestore>(),
           ),
         ),
@@ -159,136 +152,57 @@ class MyApp extends StatelessWidget {
         // History Repository
         Provider<HistoryRepository>(
           create: (context) => HistoryRepositoryImpl(
-            dataSource: context.read<HistoryFirebaseDataSourceImpl>(),
+            historyDataSource: context.read<HistoryDataSourceImpl>(),
           ),
         ),
 
         // History UseCases
-        Provider(
+        Provider<GetHistoriesUseCase>(
           create: (context) => GetHistoriesUseCase(
             repository: context.read<HistoryRepository>(),
           ),
         ),
-        Provider(
+        Provider<AddHistoryUseCase>(
           create: (context) => AddHistoryUseCase(
             repository: context.read<HistoryRepository>(),
           ),
         ),
-        Provider(
+        Provider<UpdateHistoryUseCase>(
           create: (context) => UpdateHistoryUseCase(
             repository: context.read<HistoryRepository>(),
           ),
         ),
-        Provider(
+        Provider<DeleteHistoryUseCase>(
           create: (context) => DeleteHistoryUseCase(
             repository: context.read<HistoryRepository>(),
           ),
         ),
-        Provider(
+        Provider<GetHistoriesByMonthUseCase>(
           create: (context) => GetHistoriesByMonthUseCase(
             repository: context.read<HistoryRepository>(),
           ),
         ),
+
+        // ========================================
+        // Global ViewModels
+        // ========================================
+        ChangeNotifierProvider<AuthViewModel>(
+          create: (context) => AuthViewModel(
+            signInUseCase: context.read<SignInUseCase>(),
+            signUpUseCase: context.read<SignUpUseCase>(),
+            signOutUseCase: context.read<SignOutUseCase>(),
+          ),
+        ),
       ],
-      child: MaterialApp(
+      child: MaterialApp.router(
         title: 'Lifetime Ledger',
+        routerConfig: router,
         theme: ThemeData(
-          colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
+          colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue),
           useMaterial3: true,
+          fontFamily: 'Inter',
         ),
-        locale: const Locale('ko', 'KR'),
-        supportedLocales: const [
-          Locale('en', 'US'),
-          Locale('ko', 'KR'),
-        ],
-        home: const AuthWrapper(), // 인증 상태에 따른 화면 분기
-      ),
-    );
-  }
-}
-
-/// 인증 상태에 따라 화면을 분기하는 Wrapper
-class AuthWrapper extends StatelessWidget {
-  const AuthWrapper({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return Consumer<AuthViewModel>(
-      builder: (context, authViewModel, child) {
-        // Firebase Auth의 실시간 상태 변화를 스트림으로 감지
-        return StreamBuilder<User?>(
-          stream: FirebaseAuth.instance.authStateChanges(),
-          builder: (context, snapshot) {
-            // 연결 상태 확인 중
-            if (snapshot.connectionState == ConnectionState.waiting) {
-              return const SplashScreen();
-            }
-
-            // 로그인 상태에 따른 화면 분기
-            if (snapshot.hasData && snapshot.data != null) {
-              // 로그인됨: HistoryScreen으로 이동
-              return const HistoryScreen();
-            } else {
-              // 로그인 안됨: AuthScreen으로 이동
-              return const AuthScreen();
-            }
-          },
-        );
-      },
-    );
-  }
-}
-
-/// 스플래시 화면 (Firebase 연결 대기 중)
-class SplashScreen extends StatelessWidget {
-  const SplashScreen({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.white,
-      body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            // 로고
-            Container(
-              width: 100,
-              height: 100,
-              decoration: BoxDecoration(
-                color: Colors.black,
-                borderRadius: BorderRadius.circular(25),
-              ),
-              child: const Icon(
-                Icons.account_balance_wallet,
-                color: Colors.white,
-                size: 50,
-              ),
-            ),
-            const SizedBox(height: 24),
-            const Text(
-              'Lifetime Ledger',
-              style: TextStyle(
-                fontSize: 32,
-                fontWeight: FontWeight.bold,
-                color: Colors.black,
-              ),
-            ),
-            const SizedBox(height: 8),
-            const Text(
-              '나만의 가계부',
-              style: TextStyle(
-                fontSize: 18,
-                color: Colors.grey,
-              ),
-            ),
-            const SizedBox(height: 40),
-            // 로딩 인디케이터
-            const CircularProgressIndicator(
-              valueColor: AlwaysStoppedAnimation<Color>(Colors.black),
-            ),
-          ],
-        ),
+        debugShowCheckedModeBanner: false,
       ),
     );
   }
