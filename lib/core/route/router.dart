@@ -6,6 +6,7 @@ import '../../ui/auth/signin/signin_screen.dart';
 import '../../ui/auth/signup/signup_screen.dart';
 import '../../ui/auth/password/change_password_screen.dart';
 import '../../ui/history/history_screen.dart';
+import '../../ui/main/main_screen.dart';
 import '../../ui/splash/splash_screen.dart';
 import 'routes.dart';
 

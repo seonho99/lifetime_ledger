@@ -245,7 +245,7 @@ class _SignInViewState extends State<SignInView> {
         const SizedBox(width: 10),
         GestureDetector(
           onTap: () {
-            context.push(Routes.password);
+            context.push(Routes.changePassword);
           },
           child: const Text(
             '비밀번호 재설정',

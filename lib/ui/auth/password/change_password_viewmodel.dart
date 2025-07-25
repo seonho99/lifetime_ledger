@@ -90,9 +90,10 @@ class ChangePasswordViewModel extends ChangeNotifier {
     String? confirmPasswordError;
 
     // 실시간 유효성 검증
-    if (confirmNewPassword.isNotEmpty &&
-        confirmNewPassword != _state.newPassword) {
-      confirmPasswordError = '비밀번호가 일치하지 않습니다';
+    if (confirmNewPassword.isNotEmpty) {
+      if (confirmNewPassword != _state.newPassword) {
+        confirmPasswordError = '비밀번호가 일치하지 않습니다';
+      }
     }
 
     _updateState(_state.copyWith(
@@ -133,10 +134,18 @@ class ChangePasswordViewModel extends ChangeNotifier {
     _updateState(_state.copyWith(successMessage: null));
   }
 
-  /// 전체 상태 초기화
-  void resetState() {
-    _state = ChangePasswordState.initial();
-    notifyListeners();
+  /// 모든 필드 초기화
+  void clearAllFields() {
+    _updateState(_state.copyWith(
+      currentPassword: '',
+      newPassword: '',
+      confirmNewPassword: '',
+      currentPasswordError: null,
+      newPasswordError: null,
+      confirmPasswordError: null,
+      errorMessage: null,
+      successMessage: null,
+    ));
   }
 
   // ========================================
@@ -145,7 +154,7 @@ class ChangePasswordViewModel extends ChangeNotifier {
 
   /// 비밀번호 변경 실행
   Future<void> changePassword({
-    VoidCallback? onSuccess,
+    Function()? onSuccess,
     Function(String)? onError,
   }) async {
     // 폼 유효성 검증
@@ -213,7 +222,7 @@ class ChangePasswordViewModel extends ChangeNotifier {
     switch (failure.runtimeType) {
       case ValidationFailure:
         return failure.message;
-      case AuthFailure:
+      case FirebaseFailure:
       // Firebase Auth 에러에 따른 구체적 메시지
         if (failure.message.contains('wrong-password') ||
             failure.message.contains('현재 비밀번호')) {
@@ -224,6 +233,8 @@ class ChangePasswordViewModel extends ChangeNotifier {
           return '보안을 위해 다시 로그인 후 시도해주세요';
         }
         return failure.message;
+      case UnauthorizedFailure:
+        return '인증이 필요합니다. 다시 로그인해 주세요';
       case NetworkFailure:
         return '네트워크 연결을 확인해주세요';
       case ServerFailure:
@@ -231,5 +242,14 @@ class ChangePasswordViewModel extends ChangeNotifier {
       default:
         return '알 수 없는 오류가 발생했습니다';
     }
+  }
+
+  // ========================================
+  // 생명주기 관리
+  // ========================================
+
+  @override
+  void dispose() {
+    super.dispose();
   }
 }
