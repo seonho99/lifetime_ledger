@@ -22,23 +22,15 @@ final router = GoRouter(
       builder: (context, state) => const SplashScreen(),
     ),
 
-    // 인증 관련 라우트
+    // 인증 관련 라우트들 (독립된 라우트로 분리)
     GoRoute(
       path: Routes.signIn,
       builder: (context, state) => const SignInScreen(),
-      routes: [
-        // signIn의 하위 라우트로 signUp 설정
-        GoRoute(
-          path: Routes.signUp, // 'sign_up' (상대 경로)
-          builder: (context, state) => const SignUpScreen(),
-        ),
-      ],
     ),
 
-    // 비밀번호 재설정
     GoRoute(
-      path: Routes.changePassword,
-      builder: (context, state) => const ChangePasswordScreen(),
+      path: Routes.signUp,
+      builder: (context, state) => const SignUpScreen(),
     ),
 
     // 비밀번호 변경
@@ -57,10 +49,5 @@ final router = GoRouter(
       path: Routes.history,
       builder: (context, state) => const HistoryScreen(),
     ),
-
-
   ],
-
-
 );
-

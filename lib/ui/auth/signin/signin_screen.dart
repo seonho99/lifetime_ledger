@@ -56,6 +56,7 @@ class _SignInViewState extends State<SignInView> {
         ),
         backgroundColor: Colors.white,
         elevation: 0,
+        scrolledUnderElevation: 0,
         centerTitle: true,
       ),
       body: SafeArea(
@@ -66,42 +67,52 @@ class _SignInViewState extends State<SignInView> {
               return Form(
                 key: _formKey,
                 child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    const SizedBox(height: 40),
+                    Expanded(
+                      child: SingleChildScrollView(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const SizedBox(height: 40),
 
-                    // 로고 또는 아이콘
-                    _buildLogo(),
+                            // 로고
+                            _buildLogo(),
 
-                    const SizedBox(height: 40),
+                            const SizedBox(height: 60),
 
-                    // 이메일 입력 필드
-                    _buildEmailField(viewModel),
+                            // 이메일 입력 필드
+                            _buildEmailField(viewModel),
 
-                    const SizedBox(height: 20),
+                            const SizedBox(height: 20),
 
-                    // 비밀번호 입력 필드
-                    _buildPasswordField(viewModel),
+                            // 비밀번호 입력 필드
+                            _buildPasswordField(viewModel),
 
-                    const SizedBox(height: 30),
+                            const SizedBox(height: 20),
 
-                    // 비밀번호 찾기
-                    _buildForgotPassword(),
+                            // 비밀번호 찾기
+                            _buildForgotPassword(),
 
-                    const SizedBox(height: 30),
+                            const SizedBox(height: 40),
+
+                            // 에러/성공 메시지
+                            _buildMessages(viewModel),
+
+                            const SizedBox(height: 20),
+                          ],
+                        ),
+                      ),
+                    ),
 
                     // 로그인 버튼
                     _buildSignInButton(viewModel),
 
-                    const SizedBox(height: 40),
+                    const SizedBox(height: 20),
 
                     // 회원가입 링크
                     _buildSignUpLink(),
 
-                    const Spacer(),
-
-                    // 에러/성공 메시지
-                    _buildMessages(viewModel),
+                    const SizedBox(height: 20),
                   ],
                 ),
               );
@@ -114,10 +125,31 @@ class _SignInViewState extends State<SignInView> {
 
   Widget _buildLogo() {
     return const Center(
-      child: Icon(
-        Icons.login,
-        size: 80,
-        color: Colors.blue,
+      child: Column(
+        children: [
+          Icon(
+            Icons.account_balance_wallet,
+            size: 80,
+            color: Colors.blue,
+          ),
+          SizedBox(height: 16),
+          Text(
+            'Lifetime Ledger',
+            style: TextStyle(
+              fontSize: 28,
+              fontWeight: FontWeight.bold,
+              color: Colors.black87,
+            ),
+          ),
+          SizedBox(height: 8),
+          Text(
+            '평생 가계부',
+            style: TextStyle(
+              fontSize: 16,
+              color: Colors.grey,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -143,8 +175,8 @@ class _SignInViewState extends State<SignInView> {
           ),
           child: TextFormField(
             controller: _emailController,
-            keyboardType: TextInputType.emailAddress,
             onChanged: viewModel.onEmailChanged,
+            keyboardType: TextInputType.emailAddress,
             decoration: const InputDecoration(
               hintText: '이메일을 입력해주세요',
               hintStyle: TextStyle(
@@ -162,7 +194,7 @@ class _SignInViewState extends State<SignInView> {
               if (value == null || value.isEmpty) {
                 return '이메일을 입력해주세요';
               }
-              final emailRegex = RegExp(r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$');
+              final emailRegex = RegExp(r'^[^@\s]+@[^@\s]+\.[a-zA-Z]{2,}$');
               if (!emailRegex.hasMatch(value.trim())) {
                 return '유효하지 않은 이메일 형식입니다';
               }
@@ -311,8 +343,9 @@ class _SignInViewState extends State<SignInView> {
         const SizedBox(width: 10),
         GestureDetector(
           onTap: () {
-            // signUp은 signIn의 하위 라우트이므로 상대 경로 사용
-            context.push('/${Routes.signUp}');
+            // signUp은 이제 독립된 라우트이므로 절대 경로 사용
+            print('🚀 SignIn: Navigating to signup');
+            context.push(Routes.signUp);  // '/sign_up' 절대 경로로 이동
           },
           child: const Text(
             '회원가입',

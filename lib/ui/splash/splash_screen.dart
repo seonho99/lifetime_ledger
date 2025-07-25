@@ -18,13 +18,22 @@ class _SplashScreenState extends State<SplashScreen> {
   }
 
   Future<void> _navigateToSignIn() async {
-    // 3초 대기 (스플래시 효과)
-    await Future.delayed(const Duration(seconds: 3));
+    try {
+      // 3초 대기 (스플래시 효과)
+      await Future.delayed(const Duration(seconds: 3));
 
-    if (!mounted) return;
+      if (!mounted) return;
 
-    // 로그인 화면으로 이동
-    context.go(Routes.signIn);
+      // 로그인 화면으로 이동
+      print('🚀 Splash: Navigating to ${Routes.signIn}');
+      context.go(Routes.signIn);
+    } catch (e) {
+      print('❌ Splash Error: $e');
+      // 에러가 발생해도 로그인 화면으로 이동 시도
+      if (mounted) {
+        context.go('/sign_in');
+      }
+    }
   }
 
   @override

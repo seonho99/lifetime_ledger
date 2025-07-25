@@ -3,9 +3,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/date_symbol_data_local.dart';
-import 'package:lifetime_ledger/domain/model/history.dart';
 import 'package:provider/provider.dart';
-import 'package:go_router/go_router.dart';
 
 import 'firebase_options.dart';
 
@@ -38,13 +36,6 @@ import 'domain/usecase/add_history_usecase.dart';
 import 'domain/usecase/update_history_usecase.dart';
 import 'domain/usecase/delete_history_usecase.dart';
 import 'domain/usecase/get_histories_by_month_usecase.dart';
-
-// Global ViewModels
-import 'ui/auth/auth_viewmodel.dart';
-
-
-
-
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -82,16 +73,17 @@ class MyApp extends StatelessWidget {
         // ========================================
 
         // Auth DataSource
-        Provider<AuthDataSourceImpl>(
-          create: (context) => AuthDataSourceImpl(
+        Provider<AuthFirebaseDataSourceImpl>(
+          create: (context) => AuthFirebaseDataSourceImpl(
             firebaseAuth: context.read<FirebaseAuth>(),
+            firestore: context.read<FirebaseFirestore>(),
           ),
         ),
 
         // Auth Repository
         Provider<AuthRepository>(
           create: (context) => AuthRepositoryImpl(
-            authDataSource: context.read<AuthDataSourceImpl>(),
+            dataSource: context.read<AuthFirebaseDataSourceImpl>(),
           ),
         ),
 
@@ -116,7 +108,6 @@ class MyApp extends StatelessWidget {
             repository: context.read<AuthRepository>(),
           ),
         ),
-        // 새로 추가: ChangePasswordUseCase
         Provider<ChangePasswordUseCase>(
           create: (context) => ChangePasswordUseCase(
             repository: context.read<AuthRepository>(),
@@ -143,8 +134,8 @@ class MyApp extends StatelessWidget {
         // ========================================
 
         // History DataSource
-        Provider<HistoryDataSourceImpl>(
-          create: (context) => HistoryDataSourceImpl(
+        Provider<HistoryFirebaseDataSourceImpl>(
+          create: (context) => HistoryFirebaseDataSourceImpl(
             firestore: context.read<FirebaseFirestore>(),
           ),
         ),
@@ -152,7 +143,7 @@ class MyApp extends StatelessWidget {
         // History Repository
         Provider<HistoryRepository>(
           create: (context) => HistoryRepositoryImpl(
-            historyDataSource: context.read<HistoryDataSourceImpl>(),
+            dataSource: context.read<HistoryFirebaseDataSourceImpl>(),
           ),
         ),
 
@@ -182,26 +173,15 @@ class MyApp extends StatelessWidget {
             repository: context.read<HistoryRepository>(),
           ),
         ),
-
-        // ========================================
-        // Global ViewModels
-        // ========================================
-        ChangeNotifierProvider<AuthViewModel>(
-          create: (context) => AuthViewModel(
-            signInUseCase: context.read<SignInUseCase>(),
-            signUpUseCase: context.read<SignUpUseCase>(),
-            signOutUseCase: context.read<SignOutUseCase>(),
-          ),
-        ),
       ],
       child: MaterialApp.router(
         title: 'Lifetime Ledger',
-        routerConfig: router,
         theme: ThemeData(
           colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue),
           useMaterial3: true,
-          fontFamily: 'Inter',
+          fontFamily: 'Noto Sans',
         ),
+        routerConfig: router,
         debugShowCheckedModeBanner: false,
       ),
     );
