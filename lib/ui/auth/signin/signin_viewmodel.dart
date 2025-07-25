@@ -95,29 +95,38 @@ class SignInViewModel extends ChangeNotifier {
       successMessage: null,
     ));
 
-    // UseCase 호출
-    final result = await _signInUseCase(
-      email: _state.email.trim(),
-      password: _state.password,
-    );
+    try {
+      // UseCase 호출
+      final result = await _signInUseCase(
+        email: _state.email.trim(),
+        password: _state.password,
+      );
 
-    // 결과 처리 (Result.when 패턴)
-    result.when(
-      success: (user) {
-        _updateState(_state.copyWith(
-          isLoading: false,
-          successMessage: '로그인 성공! 환영합니다, ${user.displayName ?? user.email}',
-          errorMessage: null,
-        ));
-      },
-      error: (failure) {
-        _updateState(_state.copyWith(
-          isLoading: false,
-          errorMessage: _getErrorMessage(failure),
-          successMessage: null,
-        ));
-      },
-    );
+      // 결과 처리 (Result.when 패턴)
+      result.when(
+        success: (user) {
+          _updateState(_state.copyWith(
+            isLoading: false,
+            successMessage: '로그인 성공! 환영합니다, ${user.displayName ?? user.email}',
+            errorMessage: null,
+          ));
+        },
+        error: (failure) {
+          _updateState(_state.copyWith(
+            isLoading: false,
+            errorMessage: _getErrorMessage(failure),
+            successMessage: null,
+          ));
+        },
+      );
+    } catch (e) {
+      // 예외 처리
+      _updateState(_state.copyWith(
+        isLoading: false,
+        errorMessage: '로그인 중 오류가 발생했습니다: ${e.toString()}',
+        successMessage: null,
+      ));
+    }
   }
 
   /// Failure를 사용자 친화적 메시지로 변환
@@ -131,6 +140,8 @@ class SignInViewModel extends ChangeNotifier {
       return '서버 오류가 발생했습니다. 잠시 후 다시 시도해주세요';
     } else if (failure is UnauthorizedFailure) {
       return '이메일 또는 비밀번호가 올바르지 않습니다';
+    } else if (failure is FirebaseFailure) {
+      return '인증 서비스 오류가 발생했습니다';
     } else {
       return '알 수 없는 오류가 발생했습니다';
     }

@@ -2,15 +2,17 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
+import 'change_password_viewmodel.dart';
 
-class PasswordResetScreen extends StatefulWidget {
-  const PasswordResetScreen({super.key});
+
+class ChangePasswordScreen extends StatefulWidget {
+  const ChangePasswordScreen({super.key});
 
   @override
-  State<PasswordResetScreen> createState() => _PasswordResetScreenState();
+  State<ChangePasswordScreen> createState() => _ChangePasswordScreenState();
 }
 
-class _PasswordResetScreenState extends State<PasswordResetScreen> {
+class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
   final TextEditingController _emailController = TextEditingController();
 
   @override
@@ -18,7 +20,7 @@ class _PasswordResetScreenState extends State<PasswordResetScreen> {
     super.initState();
     // ViewModel의 상태와 컨트롤러를 동기화
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      final viewModel = context.read<PasswordResetViewModel>();
+      final viewModel = context.read<ChangePasswordViewModel>();
       _emailController.addListener(() {
         viewModel.onEmailChanged(_emailController.text);
       });
@@ -35,7 +37,7 @@ class _PasswordResetScreenState extends State<PasswordResetScreen> {
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.all(20.0),
-          child: Consumer<PasswordResetViewModel>(
+          child: Consumer<ChangePasswordViewModel>(
             builder: (context, viewModel, child) {
               final state = viewModel.state;
 

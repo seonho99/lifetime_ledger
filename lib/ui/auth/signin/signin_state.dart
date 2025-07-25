@@ -5,7 +5,7 @@ part 'signin_state.freezed.dart';
 /// SignIn 화면 상태 (Freezed 3.0 방식)
 @freezed
 class SignInState with _$SignInState {
-  const SignInState({
+  SignInState({
     required this.email,
     required this.password,
     required this.isLoading,
@@ -23,7 +23,7 @@ class SignInState with _$SignInState {
 
   /// 초기 상태
   factory SignInState.initial() {
-    return const SignInState(
+    return SignInState(
       email: '',
       password: '',
       isLoading: false,
@@ -35,7 +35,7 @@ class SignInState with _$SignInState {
 
   /// 로딩 상태
   factory SignInState.loading() {
-    return const SignInState(
+    return SignInState(
       email: '',
       password: '',
       isLoading: true,

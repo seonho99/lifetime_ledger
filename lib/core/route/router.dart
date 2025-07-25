@@ -5,70 +5,61 @@ import 'package:go_router/go_router.dart';
 import '../../ui/auth/signin/signin_screen.dart';
 import '../../ui/auth/signup/signup_screen.dart';
 import '../../ui/auth/password/change_password_screen.dart';
+import '../../ui/history/history_screen.dart';
+import '../../ui/splash/splash_screen.dart';
 import 'routes.dart';
 
 final _rootNavigatorKey = GlobalKey<NavigatorState>();
 
 final router = GoRouter(
   navigatorKey: _rootNavigatorKey,
-  initialLocation: '/',
+  initialLocation: Routes.splash,
   routes: [
+    // 스플래시 화면
     GoRoute(
-      path: '/',
+      path: Routes.splash,
       builder: (context, state) => const SplashScreen(),
     ),
+
+    // 인증 관련 라우트
     GoRoute(
       path: Routes.signIn,
-      builder: (context, state) {
-        return const SignInScreen();
-      },
+      builder: (context, state) => const SignInScreen(),
       routes: [
+        // signIn의 하위 라우트로 signUp 설정
         GoRoute(
-          path: Routes.signUp,
-          builder: (context, state) {
-            return const SignUpScreen();
-          },
+          path: Routes.signUp, // 'sign_up' (상대 경로)
+          builder: (context, state) => const SignUpScreen(),
         ),
       ],
     ),
-    GoRoute(
-      path: Routes.password,
-      builder: (context, state) {
-        return const PasswordResetScreen();
-      },
-    ),
-    // 새로 추가: 비밀번호 변경 라우트
+
+    // 비밀번호 재설정
     GoRoute(
       path: Routes.changePassword,
-      builder: (context, state) {
-        return const ChangePasswordScreen();
-      },
+      builder: (context, state) => const ChangePasswordScreen(),
     ),
-    StatefulShellRoute.indexedStack(
-      parentNavigatorKey: _rootNavigatorKey,
-      builder: (context, state, navigationShell) {
-        return NavigationWidget(navigationShell: navigationShell);
-      },
-      branches: [
-        StatefulShellBranch(
-          routes: [
-            GoRoute(
-              path: Routes.main,
-              builder: (context, state) {
-                return const MainScreen();
-              },
-              routes: [
-                // 메인 화면의 하위 라우트들
-              ],
-            ),
-          ],
-        ),
-        StatefulShellBranch(
-          routes: [
-            // 다른 브랜치의 라우트들
-          ],
-        ),
-      ],
+
+    // 비밀번호 변경
+    GoRoute(
+      path: Routes.changePassword,
+      builder: (context, state) => const ChangePasswordScreen(),
     ),
+
+    // 메인 앱 라우트들
+    GoRoute(
+      path: Routes.main,
+      builder: (context, state) => const MainScreen(),
+    ),
+
+    GoRoute(
+      path: Routes.history,
+      builder: (context, state) => const HistoryScreen(),
+    ),
+
+
   ],
+
+
 );
+

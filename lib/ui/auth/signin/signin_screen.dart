@@ -4,7 +4,6 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/route/routes.dart';
 import '../../../domain/usecase/signin_usecase.dart';
-import '../../history/history_screen.dart';
 import 'signin_viewmodel.dart';
 
 /// SignIn Screen (Provider 설정 + UI)
@@ -23,7 +22,7 @@ class SignInScreen extends StatelessWidget {
   }
 }
 
-/// SignIn View (StatelessWidget UI)
+/// SignIn View (StatefulWidget UI)
 class SignInView extends StatefulWidget {
   const SignInView({super.key});
 
@@ -116,7 +115,7 @@ class _SignInViewState extends State<SignInView> {
   Widget _buildLogo() {
     return const Center(
       child: Icon(
-        Icons.account_circle,
+        Icons.login,
         size: 80,
         color: Colors.blue,
       ),
@@ -160,7 +159,7 @@ class _SignInViewState extends State<SignInView> {
               border: InputBorder.none,
             ),
             validator: (value) {
-              if (value == null || value.trim().isEmpty) {
+              if (value == null || value.isEmpty) {
                 return '이메일을 입력해주세요';
               }
               final emailRegex = RegExp(r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$');
@@ -312,7 +311,8 @@ class _SignInViewState extends State<SignInView> {
         const SizedBox(width: 10),
         GestureDetector(
           onTap: () {
-            context.push('/${Routes.signUp}'); // signUp은 중첩 라우트이므로 '/' 추가
+            // signUp은 signIn의 하위 라우트이므로 상대 경로 사용
+            context.push('/${Routes.signUp}');
           },
           child: const Text(
             '회원가입',
@@ -388,12 +388,10 @@ class _SignInViewState extends State<SignInView> {
     // 로그인 실행
     await viewModel.signIn();
 
-    // 성공 시 히스토리 화면으로 이동
+    // 성공 시 메인 화면으로 이동
     if (viewModel.hasSuccess && context.mounted) {
-      // GoRouter를 사용하거나 기존 Navigator 사용
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (context) => const HistoryScreen()),
-      );
+      // GoRouter를 사용하여 메인 화면으로 이동
+      context.go(Routes.main);
     }
   }
 }
