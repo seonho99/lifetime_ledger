@@ -4,9 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../ui/auth/signin/signin_screen.dart';
 import '../../ui/auth/signup/signup_screen.dart';
-import '../../ui/auth/password/password_screen.dart';
 import '../../ui/auth/password/change_password_screen.dart';
-import '../../ui/navigation/navigation_widget.dart';
 import 'routes.dart';
 
 final _rootNavigatorKey = GlobalKey<NavigatorState>();

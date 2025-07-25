@@ -1,11 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
-import 'package:share_status/component/widget/click_button.dart';
-import 'package:share_status/core/route/routes.dart';
 
-import '../../widget/input_field.dart';
-import 'password_reset_view_model.dart';
 
 class PasswordResetScreen extends StatefulWidget {
   const PasswordResetScreen({super.key});

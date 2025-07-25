@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
-class SavingsScreen extends StatelessWidget {
-  const SavingsScreen({Key? key}) : super(key: key);
+class HistoryScreen extends StatelessWidget {
+  const HistoryScreen({Key? key}) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
