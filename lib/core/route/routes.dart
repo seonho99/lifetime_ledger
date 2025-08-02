@@ -14,6 +14,9 @@ abstract class Routes {
   static const String addIncome = '/add_income';
   static const String addExpense = '/add_expense';
 
+  // 통계 관련
+  static const String monthlyChart = '/monthly-chart';
+
   // 기타
   static const String splash = '/';
   

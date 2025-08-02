@@ -112,7 +112,7 @@ class _HistoryViewState extends State<HistoryView> {
             child: Container(
               padding: const EdgeInsets.only(right: 48),
               child: const Text(
-                'Lifetime Ledger',
+                '가계부 내역',
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontSize: 18,

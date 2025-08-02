@@ -7,7 +7,8 @@ import '../../ui/auth/signup/signup_screen.dart';
 import '../../ui/auth/password/change_password_screen.dart';
 import '../../ui/history/history_view.dart';
 import '../../ui/home/home_view.dart';
-import '../../ui/stats/stats_view.dart';
+import '../../ui/stats/stats_screen.dart';
+import '../../ui/stats/monthly_chart/monthly_chart_screen.dart';
 import '../../ui/settings/settings_view.dart';
 import '../../ui/layout/main_layout.dart';
 import '../../ui/splash/splash_screen.dart';
@@ -57,6 +58,12 @@ final router = GoRouter(
       builder: (context, state) => const AddExpenseScreen(),
     ),
 
+    // 월별 차트 화면
+    GoRoute(
+      path: Routes.monthlyChart,
+      builder: (context, state) => const MonthlyChartScreen(),
+    ),
+
     // 메인 앱 ShellRoute (바텀 네비게이션 포함)
     ShellRoute(
       navigatorKey: _shellNavigatorKey,
@@ -77,7 +84,7 @@ final router = GoRouter(
         // 통계 화면
         GoRoute(
           path: Routes.stats,
-          builder: (context, state) => const StatsView(),
+          builder: (context, state) => const StatsScreen(),
         ),
         
         // 설정 화면
