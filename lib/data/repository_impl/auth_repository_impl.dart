@@ -80,10 +80,18 @@ class AuthRepositoryImpl implements AuthRepository {
         isEmailVerified: false,
       );
 
-      // Firestore에 사용자 정보 저장
+      // Firestore에 사용자 정보 저장 (비동기로 처리하여 실패해도 회원가입은 성공으로 처리)
       final userDto = user.toDto();
-      await _dataSource.saveUser(userDto);
-
+      print('🔥 회원가입: Firestore에 사용자 정보 저장 시작 - UID: ${user.id}');
+      
+      // Firestore 저장을 백그라운드에서 실행 (실패해도 회원가입은 성공)
+      _dataSource.saveUser(userDto).then((_) {
+        print('✅ 회원가입: Firestore 저장 완료 (백그라운드)');
+      }).catchError((e) {
+        print('⚠️ 회원가입: Firestore 저장 실패하지만 회원가입은 성공: $e');
+      });
+      
+      print('🎯 회원가입: Firebase Auth 성공, 즉시 Success 반환');
       return Success(user);
     } catch (e, stackTrace) {
       final failure = FailureMapper.mapExceptionToFailure(e, stackTrace);

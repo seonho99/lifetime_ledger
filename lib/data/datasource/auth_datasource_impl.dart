@@ -156,11 +156,25 @@ class AuthFirebaseDataSourceImpl implements AuthDataSource {
   @override
   Future<void> saveUser(UserModelDto user) async {
     try {
+      print('💾 Firestore 저장 시작: ${user.id}');
+      print('💾 저장할 데이터: ${user.toFirestore()}');
+      
+      // 타임아웃 추가 (30초)
       await _firestore
           .collection(_usersCollection)
           .doc(user.id)
-          .set(user.toFirestore());
+          .set(user.toFirestore())
+          .timeout(
+            const Duration(seconds: 30),
+            onTimeout: () {
+              print('⏰ Firestore 저장 타임아웃 발생');
+              throw ServerException('Firestore 저장 시간이 초과되었습니다');
+            },
+          );
+          
+      print('💾 Firestore 저장 성공!');
     } catch (e) {
+      print('❌ Firestore 저장 실패: $e');
       throw ServerException('사용자 정보 저장 중 오류가 발생했습니다: $e');
     }
   }

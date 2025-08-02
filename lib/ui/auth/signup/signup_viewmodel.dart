@@ -112,8 +112,11 @@ class SignUpViewModel extends ChangeNotifier {
 
   /// 회원가입 실행
   Future<void> signUp() async {
+    print('🚀 SignUpViewModel: 회원가입 시작');
+    
     // 폼 유효성 검증
     if (!_state.isValid) {
+      print('❌ SignUpViewModel: 폼 유효성 검증 실패');
       String errorMsg = '모든 필드를 올바르게 입력해주세요';
 
       if (!_state.agreeToTerms) {
@@ -128,42 +131,65 @@ class SignUpViewModel extends ChangeNotifier {
         errorMsg = _state.displayNameError!;
       }
 
+      print('❌ SignUpViewModel: 유효성 검증 에러 메시지: $errorMsg');
       _updateState(_state.copyWith(errorMessage: errorMsg));
       return;
     }
 
+    print('✅ SignUpViewModel: 폼 유효성 검증 통과');
+
     // 로딩 시작
+    print('⏳ SignUpViewModel: 로딩 상태 시작');
     _updateState(_state.copyWith(
       isLoading: true,
       errorMessage: null,
       successMessage: null,
     ));
 
-    // UseCase 호출
-    final result = await _signUpUseCase(
-      email: _state.email.trim(),
-      password: _state.password,
-      confirmPassword: _state.confirmPassword,
-      displayName: _state.displayName.trim(),
-    );
+    try {
+      print('📞 SignUpViewModel: UseCase 호출 시작');
+      // UseCase 호출
+      final result = await _signUpUseCase(
+        email: _state.email.trim(),
+        password: _state.password,
+        confirmPassword: _state.confirmPassword,
+        displayName: _state.displayName.trim(),
+      );
 
-    // 결과 처리 (Result.when 패턴)
-    result.when(
-      success: (user) {
-        _updateState(_state.copyWith(
-          isLoading: false,
-          successMessage: '회원가입이 완료되었습니다! 환영합니다, ${user.displayName}',
-          errorMessage: null,
-        ));
-      },
-      error: (failure) {
-        _updateState(_state.copyWith(
-          isLoading: false,
-          errorMessage: _getErrorMessage(failure),
-          successMessage: null,
-        ));
-      },
-    );
+      print('📞 SignUpViewModel: UseCase 호출 완료, 결과 처리 시작');
+
+      // 결과 처리 (Result.when 패턴)
+      result.when(
+        success: (user) {
+          print('🎉 SignUpViewModel: 회원가입 성공! - User: ${user.displayName}');
+          _updateState(_state.copyWith(
+            isLoading: false,
+            successMessage: '회원가입이 완료되었습니다! 환영합니다, ${user.displayName}',
+            errorMessage: null,
+          ));
+          print('✅ SignUpViewModel: 성공 상태 업데이트 완료');
+        },
+        error: (failure) {
+          print('❌ SignUpViewModel: 회원가입 실패! - Error: $failure');
+          _updateState(_state.copyWith(
+            isLoading: false,
+            errorMessage: _getErrorMessage(failure),
+            successMessage: null,
+          ));
+          print('❌ SignUpViewModel: 에러 상태 업데이트 완료');
+        },
+      );
+    } catch (e, stackTrace) {
+      print('💥 SignUpViewModel: 예외 발생! - $e');
+      print('💥 StackTrace: $stackTrace');
+      _updateState(_state.copyWith(
+        isLoading: false,
+        errorMessage: '회원가입 중 오류가 발생했습니다: $e',
+        successMessage: null,
+      ));
+    }
+
+    print('🏁 SignUpViewModel: signUp 메서드 완료');
   }
 
   /// Failure를 사용자 친화적 메시지로 변환

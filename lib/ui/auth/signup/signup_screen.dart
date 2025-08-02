@@ -558,15 +558,16 @@ class _SignUpViewState extends State<SignUpView> {
     // 회원가입 실행
     await viewModel.signUp();
 
-    // 성공 시 로그인 화면으로 이동
+    // 성공 시 메인 화면으로 이동 (Firebase Auth는 회원가입 시 자동 로그인)
     if (viewModel.hasSuccess && context.mounted) {
-      // 1초 후 로그인 화면으로 이동 (성공 메시지 보여주기 위해)
-      await Future.delayed(const Duration(seconds: 1));
+      print('🚀 SignUpScreen: 회원가입 성공! 2초 후 메인 화면으로 이동');
+      // 2초 후 메인 화면으로 이동 (성공 메시지 보여주기 위해)
+      await Future.delayed(const Duration(seconds: 2));
 
       if (context.mounted) {
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute(builder: (context) => const SignInScreen()),
-        );
+        print('🚀 SignUpScreen: 메인 화면으로 이동 시작');
+        context.go(Routes.main);
+        print('🚀 SignUpScreen: 메인 화면으로 이동 완료');
       }
     }
   }
