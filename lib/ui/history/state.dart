@@ -2,7 +2,7 @@ import 'package:freezed_annotation/freezed_annotation.dart';
 
 import '../../domain/model/history.dart';
 
-part 'history_state.freezed.dart';
+part 'state.freezed.dart';
 
 @freezed
 class HistoryState with _$HistoryState {

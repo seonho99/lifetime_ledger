@@ -34,13 +34,20 @@ class AuthRepositoryImpl implements AuthRepository {
         password: password,
       );
 
-      // Firestore에서 사용자 정보 조회
-      final userDto = await _dataSource.getUser(uid);
-      final user = userDto.toModel();
-
-      if (user == null) {
-        return Error(ServerFailure('사용자 정보를 변환할 수 없습니다'));
+      // Firebase Auth 정보로 User 모델 직접 생성
+      final firebaseUser = await _dataSource.getCurrentUser();
+      if (firebaseUser == null) {
+        return Error(ServerFailure('로그인된 사용자 정보를 가져올 수 없습니다'));
       }
+
+      final user = UserModel(
+        id: uid,
+        email: firebaseUser.email ?? email.trim(),
+        displayName: firebaseUser.displayName,
+        isEmailVerified: firebaseUser.emailVerified,
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+      );
 
       return Success(user);
     } catch (e, stackTrace) {

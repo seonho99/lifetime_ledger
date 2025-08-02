@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
+import 'package:intl/intl.dart';
 
 import '../../core/route/routes.dart';
+import '../history/history_viewmodel.dart';
 
 /// Main Screen (메인 가계부 화면)
 class MainScreen extends StatefulWidget {
@@ -15,7 +18,19 @@ class _MainScreenState extends State<MainScreen> {
   int _selectedIndex = 0;
 
   @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final viewModel = Provider.of<HistoryViewModel>(context, listen: false);
+      final now = DateTime.now();
+      viewModel.loadHistoriesByMonth(now.year, now.month);
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
+    return Consumer<HistoryViewModel>(
+      builder: (context, viewModel, child) {
     return Scaffold(
       backgroundColor: const Color(0xFFFAFAFA),
       body: SafeArea(
@@ -55,263 +70,239 @@ class _MainScreenState extends State<MainScreen> {
               ),
             ),
 
-            // Account Info Section
-            Container(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
-                      children: [
-                        // Profile Avatar
-                        Container(
-                          width: 128,
-                          height: 128,
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(64),
-                            color: Colors.blue.shade100,
-                          ),
-                          child: Icon(
-                            Icons.person,
-                            size: 80,
-                            color: Colors.blue.shade600,
-                          ),
-                        ),
-                        const SizedBox(height: 16),
-
-                        // User Info
-                        Column(
-                          children: const [
-                            Text(
-                              '나의 가계부',
-                              style: TextStyle(
-                                fontSize: 22,
-                                fontWeight: FontWeight.w700,
-                                color: Color(0xFF141414),
-                                fontFamily: 'Noto Sans',
-                              ),
-                            ),
-                            SizedBox(height: 4),
-                            Text(
-                              '오늘도 알뜰하게!',
-                              style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w400,
-                                color: Color(0xFF737373),
-                                fontFamily: 'Noto Sans',
-                              ),
-                            ),
-                            SizedBox(height: 4),
-                            Text(
-                              '총 자산: ₩1,234,567',
-                              style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w600,
-                                color: Color(0xFF141414),
-                                fontFamily: 'Noto Sans',
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
-            // Stats Cards Section
-            Container(
-              padding: const EdgeInsets.all(16),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Container(
-                      padding: const EdgeInsets.all(24),
-                      decoration: BoxDecoration(
-                        border: Border.all(color: const Color(0xFFDBDBDB)),
-                        borderRadius: BorderRadius.circular(8),
-                        color: Colors.white,
-                      ),
+            // Scrollable Content
+            Expanded(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.only(bottom: 20),
+                child: Column(
+                  children: [
+                    // Account Info Section
+                    Container(
+                      padding: const EdgeInsets.all(16),
                       child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: const [
-                          Text(
-                            '이번 달 지출',
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w500,
-                              color: Color(0xFF141414),
-                              fontFamily: 'Noto Sans',
-                            ),
-                          ),
-                          SizedBox(height: 8),
-                          Text(
-                            '₩234,567',
-                            style: TextStyle(
-                              fontSize: 24,
-                              fontWeight: FontWeight.w700,
-                              color: Colors.red,
-                              fontFamily: 'Noto Sans',
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(16),
+                            child: Column(
+                              children: [
+                                // User Info
+                                Column(
+                                  children: const [
+                                    Text(
+                                      '오늘도 알뜰하게!',
+                                      style: TextStyle(
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w400,
+                                        color: Color(0xFF737373),
+                                        fontFamily: 'Noto Sans',
+                                      ),
+                                    ),
+                                    SizedBox(height: 8),
+                                    Text(
+                                      '총 자산: ₩1,234,567',
+                                      style: TextStyle(
+                                        fontSize: 18,
+                                        fontWeight: FontWeight.w700,
+                                        color: Color(0xFF141414),
+                                        fontFamily: 'Noto Sans',
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
                             ),
                           ),
                         ],
                       ),
                     ),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: Container(
-                      padding: const EdgeInsets.all(24),
-                      decoration: BoxDecoration(
-                        border: Border.all(color: const Color(0xFFDBDBDB)),
-                        borderRadius: BorderRadius.circular(8),
-                        color: Colors.white,
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: const [
-                          Text(
-                            '이번 달 수입',
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w500,
-                              color: Color(0xFF141414),
-                              fontFamily: 'Noto Sans',
+
+                    // Stats Cards Section
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Container(
+                              padding: const EdgeInsets.all(20),
+                              decoration: BoxDecoration(
+                                border: Border.all(color: const Color(0xFFDBDBDB)),
+                                borderRadius: BorderRadius.circular(8),
+                                color: Colors.white,
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Text(
+                                    '이번 달 지출',
+                                    style: TextStyle(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w500,
+                                      color: Color(0xFF141414),
+                                      fontFamily: 'Noto Sans',
+                                    ),
+                                  ),
+                                  const SizedBox(height: 6),
+                                  FittedBox(
+                                    fit: BoxFit.scaleDown,
+                                    child: Text(
+                                      '₩${NumberFormat('#,###').format(viewModel.totalExpense)}',
+                                      style: const TextStyle(
+                                        fontSize: 20,
+                                        fontWeight: FontWeight.w700,
+                                        color: Colors.red,
+                                        fontFamily: 'Noto Sans',
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
                           ),
-                          SizedBox(height: 8),
-                          Text(
-                            '₩1,469,000',
-                            style: TextStyle(
-                              fontSize: 24,
-                              fontWeight: FontWeight.w700,
-                              color: Colors.green,
-                              fontFamily: 'Noto Sans',
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Container(
+                              padding: const EdgeInsets.all(20),
+                              decoration: BoxDecoration(
+                                border: Border.all(color: const Color(0xFFDBDBDB)),
+                                borderRadius: BorderRadius.circular(8),
+                                color: Colors.white,
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Text(
+                                    '이번 달 수입',
+                                    style: TextStyle(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w500,
+                                      color: Color(0xFF141414),
+                                      fontFamily: 'Noto Sans',
+                                    ),
+                                  ),
+                                  const SizedBox(height: 6),
+                                  FittedBox(
+                                    fit: BoxFit.scaleDown,
+                                    child: Text(
+                                      '₩${NumberFormat('#,###').format(viewModel.totalIncome)}',
+                                      style: const TextStyle(
+                                        fontSize: 20,
+                                        fontWeight: FontWeight.w700,
+                                        color: Colors.green,
+                                        fontFamily: 'Noto Sans',
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
                           ),
                         ],
                       ),
                     ),
-                  ),
-                ],
-              ),
-            ),
 
-            // Recent Transactions Header
-            Container(
-              padding: const EdgeInsets.fromLTRB(16, 20, 16, 12),
-              alignment: Alignment.centerLeft,
-              child: const Text(
-                '최근 거래내역',
-                style: TextStyle(
-                  fontSize: 22,
-                  fontWeight: FontWeight.w700,
-                  color: Color(0xFF141414),
-                  fontFamily: 'Noto Sans',
+                    // Recent Transactions Header
+                    Container(
+                      padding: const EdgeInsets.fromLTRB(16, 20, 16, 12),
+                      alignment: Alignment.centerLeft,
+                      child: const Text(
+                        '최근 거래내역',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w700,
+                          color: Color(0xFF141414),
+                          fontFamily: 'Noto Sans',
+                        ),
+                      ),
+                    ),
+
+                    // Transactions List
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      child: viewModel.histories.isEmpty 
+                        ? _buildEmptyTransactions()
+                        : Column(
+                            children: viewModel.histories.take(5).map((history) {
+                              final isIncome = history.type.name == 'income';
+                              return _buildTransactionItem(
+                                name: history.title,
+                                type: history.categoryId ?? '',
+                                amount: '${isIncome ? '+' : '-'}₩${NumberFormat('#,###').format(history.amount)}',
+                                color: isIncome ? Colors.green : Colors.red,
+                                icon: isIncome ? Icons.add_circle : Icons.remove_circle,
+                              );
+                            }).toList(),
+                          ),
+                    ),
+
+                    const SizedBox(height: 20),
+
+                    // Action Buttons
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: SizedBox(
+                              height: 40,
+                              child: ElevatedButton(
+                                onPressed: () {
+                                  context.go(Routes.addIncome);
+                                },
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.green.shade600,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                ),
+                                child: const Text(
+                                  '수입 추가',
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w700,
+                                    color: Colors.white,
+                                    fontFamily: 'Noto Sans',
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: SizedBox(
+                              height: 40,
+                              child: ElevatedButton(
+                                onPressed: () {
+                                  // 지출 추가 기능
+                                },
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.red.shade600,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                ),
+                                child: const Text(
+                                  '지출 추가',
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w700,
+                                    color: Colors.white,
+                                    fontFamily: 'Noto Sans',
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ),
 
-            // Transactions List
-            Expanded(
-              child: ListView(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                children: [
-                  _buildTransactionItem(
-                    name: '카페 아메리카노',
-                    type: '식비',
-                    amount: '-₩4,500',
-                    color: Colors.orange,
-                    icon: Icons.local_cafe,
-                  ),
-                  _buildTransactionItem(
-                    name: '월급',
-                    type: '수입',
-                    amount: '+₩2,500,000',
-                    color: Colors.green,
-                    icon: Icons.work,
-                  ),
-                  _buildTransactionItem(
-                    name: '지하철 교통비',
-                    type: '교통',
-                    amount: '-₩1,450',
-                    color: Colors.blue,
-                    icon: Icons.train,
-                  ),
-                  _buildTransactionItem(
-                    name: '점심 식사',
-                    type: '식비',
-                    amount: '-₩12,000',
-                    color: Colors.orange,
-                    icon: Icons.restaurant,
-                  ),
-                ],
-              ),
-            ),
-
-            // Action Buttons
-            Container(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Container(
-                      height: 40,
-                      child: ElevatedButton(
-                        onPressed: () {
-                          // 수입 추가 기능
-                        },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.green.shade600,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                        ),
-                        child: const Text(
-                          '수입 추가',
-                          style: TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w700,
-                            color: Colors.white,
-                            fontFamily: 'Noto Sans',
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Container(
-                      height: 40,
-                      child: ElevatedButton(
-                        onPressed: () {
-                          // 지출 추가 기능
-                        },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.red.shade600,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                        ),
-                        child: const Text(
-                          '지출 추가',
-                          style: TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w700,
-                            color: Colors.white,
-                            fontFamily: 'Noto Sans',
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
-            // Bottom Navigation
+            // Bottom Navigation (Fixed at bottom)
             Container(
               decoration: const BoxDecoration(
                 color: Color(0xFFFAFAFA),
@@ -359,11 +350,43 @@ class _MainScreenState extends State<MainScreen> {
                 ],
               ),
             ),
-
-            // Bottom spacing
-            Container(height: 20),
           ],
         ),
+      ),
+    );
+      }, // Consumer 닫는 부분
+    ); // return Consumer 닫는 부분
+  }
+
+  Widget _buildEmptyTransactions() {
+    return Container(
+      padding: const EdgeInsets.all(32),
+      child: Column(
+        children: [
+          Icon(
+            Icons.receipt_long_outlined,
+            size: 64,
+            color: Colors.grey[400],
+          ),
+          const SizedBox(height: 16),
+          Text(
+            '아직 거래 내역이 없습니다',
+            style: TextStyle(
+              fontSize: 16,
+              color: Colors.grey[600],
+              fontFamily: 'Noto Sans',
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            '수입이나 지출을 추가해보세요!',
+            style: TextStyle(
+              fontSize: 14,
+              color: Colors.grey[500],
+              fontFamily: 'Noto Sans',
+            ),
+          ),
+        ],
       ),
     );
   }

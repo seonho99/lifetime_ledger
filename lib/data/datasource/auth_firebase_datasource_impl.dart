@@ -180,6 +180,11 @@ class AuthFirebaseDataSourceImpl implements AuthDataSource {
   }
 
   @override
+  Future<User?> getCurrentUser() async {
+    return _firebaseAuth.currentUser;
+  }
+
+  @override
   Future<UserModelDto> getUser(String uid) async {
     try {
       final doc = await _firestore
@@ -188,7 +193,31 @@ class AuthFirebaseDataSourceImpl implements AuthDataSource {
           .get();
 
       if (!doc.exists) {
-        throw ServerException('사용자 정보를 찾을 수 없습니다');
+        // 사용자 문서가 없으면 자동으로 생성
+        print('🔧 사용자 문서가 없어서 자동 생성 중: $uid');
+        
+        final currentUser = _firebaseAuth.currentUser;
+        if (currentUser == null) {
+          throw ServerException('현재 로그인된 사용자가 없습니다');
+        }
+        
+        final newUserDto = UserModelDto(
+          id: uid,
+          email: currentUser.email ?? '',
+          displayName: currentUser.displayName ?? '사용자',
+          isEmailVerified: currentUser.emailVerified,
+          createdAt: DateTime.now(),
+          updatedAt: DateTime.now(),
+        );
+        
+        // Firestore에 사용자 문서 생성
+        await _firestore
+            .collection(_usersCollection)
+            .doc(uid)
+            .set(newUserDto.toFirestore());
+            
+        print('✅ 사용자 문서 자동 생성 완료');
+        return newUserDto;
       }
 
       return UserModelDto.fromFirestore(doc);

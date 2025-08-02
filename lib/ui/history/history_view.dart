@@ -7,14 +7,14 @@ import '../../core/route/routes.dart';
 import '../../domain/model/history.dart';
 import 'history_viewmodel.dart';
 
-class HistoryScreen extends StatefulWidget {
-  const HistoryScreen({Key? key}) : super(key: key);
+class HistoryView extends StatefulWidget {
+  const HistoryView({Key? key}) : super(key: key);
 
   @override
-  State<HistoryScreen> createState() => _HistoryScreenState();
+  State<HistoryView> createState() => _HistoryViewState();
 }
 
-class _HistoryScreenState extends State<HistoryScreen> {
+class _HistoryViewState extends State<HistoryView> {
   @override
   void initState() {
     super.initState();
@@ -22,6 +22,8 @@ class _HistoryScreenState extends State<HistoryScreen> {
       final viewModel = Provider.of<HistoryViewModel>(context, listen: false);
       final now = DateTime.now();
       viewModel.loadHistoriesByMonth(now.year, now.month);
+      // ✅ 전체 자산 계산 추가
+      viewModel.calculateTotalAssets();
     });
   }
 
@@ -29,47 +31,62 @@ class _HistoryScreenState extends State<HistoryScreen> {
   Widget build(BuildContext context) {
     return Consumer<HistoryViewModel>(
       builder: (context, viewModel, child) {
-        return Scaffold(
-          backgroundColor: const Color(0xFFFAFAFA),
-          body: SafeArea(
-            child: Column(
-              children: [
-                // Header Section
-                _buildHeader(viewModel),
-                
-                // Loading Indicator
-                if (viewModel.isLoading)
-                  const LinearProgressIndicator(
-                    backgroundColor: Color(0xFFEDEDED),
-                    valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF141414)),
-                  ),
-                
-                // Error Message
-                if (viewModel.hasError)
-                  _buildErrorMessage(viewModel),
-
-                // Month Selector
-                _buildMonthSelector(viewModel),
-
-                // Stats Cards Section  
-                _buildStatsCards(viewModel),
-
-                // Filter Tabs
-                _buildFilterTabs(viewModel),
-                
-                // Transactions Header
-                _buildTransactionsHeader(viewModel),
-
-                // Transactions List
-                Expanded(
-                  child: _buildTransactionsList(viewModel),
+        return SafeArea(
+          child: Column(
+            children: [
+              // Header Section
+              _buildHeader(viewModel),
+              
+              // Loading Indicator
+              if (viewModel.isLoading)
+                const LinearProgressIndicator(
+                  backgroundColor: Color(0xFFEDEDED),
+                  valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF141414)),
                 ),
+              
+              // Error Message
+              if (viewModel.hasError)
+                _buildErrorMessage(viewModel),
 
-                // Action Buttons
-                _buildActionButtons(),
+              // Scrollable Content
+              Expanded(
+                child: CustomScrollView(
+                  slivers: [
+                    // Account Info Section
+                    SliverToBoxAdapter(
+                      child: _buildAccountInfoSection(viewModel),
+                    ),
 
-              ],
-            ),
+                    // Month Selector
+                    SliverToBoxAdapter(
+                      child: _buildMonthSelector(viewModel),
+                    ),
+
+                    // Stats Cards Section  
+                    SliverToBoxAdapter(
+                      child: _buildStatsCards(viewModel),
+                    ),
+
+                    // Filter Tabs
+                    SliverToBoxAdapter(
+                      child: _buildFilterTabs(viewModel),
+                    ),
+                    
+                    // Recent Transactions Header
+                    SliverToBoxAdapter(
+                      child: _buildRecentTransactionsHeader(viewModel),
+                    ),
+
+                    // Transactions List
+                    _buildTransactionsSliver(viewModel),
+                  ],
+                ),
+              ),
+
+              // Action Buttons
+              _buildActionButtons(),
+
+            ],
           ),
         );
       },
@@ -95,14 +112,58 @@ class _HistoryScreenState extends State<HistoryScreen> {
             child: Container(
               padding: const EdgeInsets.only(right: 48),
               child: const Text(
-                '가계부 내역',
+                'Lifetime Ledger',
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.w700,
                   color: Color(0xFF141414),
+                  fontFamily: 'Noto Sans',
                 ),
               ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAccountInfoSection(HistoryViewModel viewModel) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              children: [
+                // User Info
+                Column(
+                  children: [
+                    const Text(
+                      '오늘도 알뜰하게!',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w400,
+                        color: Color(0xFF737373),
+                        fontFamily: 'Noto Sans',
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      viewModel.formattedTotalAssets,
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w700,
+                        color: viewModel.totalAssets >= 0 
+                            ? const Color(0xFF141414) 
+                            : Colors.red,
+                        fontFamily: 'Noto Sans',
+                      ),
+                    ),
+                  ],
+                ),
+              ],
             ),
           ),
         ],
@@ -299,18 +360,19 @@ class _HistoryScreenState extends State<HistoryScreen> {
     );
   }
   
-  Widget _buildTransactionsHeader(HistoryViewModel viewModel) {
+  Widget _buildRecentTransactionsHeader(HistoryViewModel viewModel) {
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 20, 16, 12),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           const Text(
-            '거래 내역',
+            '최근 거래내역',
             style: TextStyle(
-              fontSize: 22,
+              fontSize: 18,
               fontWeight: FontWeight.w700,
               color: Color(0xFF141414),
+              fontFamily: 'Noto Sans',
             ),
           ),
           Text(
@@ -319,6 +381,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
               fontSize: 14,
               fontWeight: FontWeight.w400,
               color: Color(0xFF737373),
+              fontFamily: 'Noto Sans',
             ),
           ),
         ],
@@ -328,26 +391,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
   
   Widget _buildTransactionsList(HistoryViewModel viewModel) {
     if (viewModel.histories.isEmpty && !viewModel.isLoading) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.receipt_long_outlined,
-              size: 64,
-              color: Colors.grey[400],
-            ),
-            const SizedBox(height: 16),
-            Text(
-              '거래 내역이 없습니다',
-              style: TextStyle(
-                fontSize: 16,
-                color: Colors.grey[600],
-              ),
-            ),
-          ],
-        ),
-      );
+      return _buildEmptyTransactions();
     }
     
     return ListView.builder(
@@ -359,76 +403,127 @@ class _HistoryScreenState extends State<HistoryScreen> {
       },
     );
   }
+
+  Widget _buildEmptyTransactions() {
+    return Container(
+      padding: const EdgeInsets.all(32),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            Icons.receipt_long_outlined,
+            size: 48, // 크기 줄임
+            color: Colors.grey[400],
+          ),
+          const SizedBox(height: 12), // 간격 줄임
+          Text(
+            '아직 거래 내역이 없습니다',
+            style: TextStyle(
+              fontSize: 14, // 폰트 크기 줄임
+              color: Colors.grey[600],
+              fontFamily: 'Noto Sans',
+            ),
+          ),
+          const SizedBox(height: 4), // 간격 줄임
+          Text(
+            '수입이나 지출을 추가해보세요!',
+            style: TextStyle(
+              fontSize: 12, // 폰트 크기 줄임
+              color: Colors.grey[500],
+              fontFamily: 'Noto Sans',
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTransactionsSliver(HistoryViewModel viewModel) {
+    if (viewModel.histories.isEmpty && !viewModel.isLoading) {
+      return SliverFillRemaining(
+        hasScrollBody: false,
+        child: _buildEmptyTransactions(),
+      );
+    }
+    
+    return SliverList(
+      delegate: SliverChildBuilderDelegate(
+        (context, index) {
+          final history = viewModel.histories[index];
+          return Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: _buildHistoryItem(history),
+          );
+        },
+        childCount: viewModel.histories.length,
+      ),
+    );
+  }
   
   Widget _buildHistoryItem(History history) {
     final numberFormat = NumberFormat('#,###', 'ko_KR');
     final isIncome = history.type == HistoryType.income;
-    final dateFormat = DateFormat('MM/dd');
     
     return Container(
-      margin: const EdgeInsets.only(bottom: 8),
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      margin: const EdgeInsets.only(bottom: 4),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: const Color(0xFFEDEDED)),
+        border: Border.all(color: Colors.grey.shade100),
       ),
       child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Container(
-            width: 48,
-            height: 48,
-            decoration: BoxDecoration(
-              color: isIncome 
-                  ? Colors.green.withOpacity(0.1)
-                  : Colors.red.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(24),
-            ),
-            child: Icon(
-              isIncome ? Icons.add : Icons.remove,
-              color: isIncome ? Colors.green : Colors.red,
-              size: 24,
-            ),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  history.title,
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w500,
-                    color: Color(0xFF141414),
-                  ),
+          Row(
+            children: [
+              Container(
+                width: 56,
+                height: 56,
+                decoration: BoxDecoration(
+                  color: isIncome ? Colors.green.withOpacity(0.2) : Colors.red.withOpacity(0.2),
+                  borderRadius: BorderRadius.circular(28),
                 ),
-                if (history.description != null && history.description!.isNotEmpty)
+                child: Icon(
+                  _getCategoryIcon(history.categoryId, isIncome),
+                  color: isIncome ? Colors.green : Colors.red,
+                  size: 24,
+                ),
+              ),
+              const SizedBox(width: 16),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
                   Text(
-                    history.description!,
+                    history.title,
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w500,
+                      color: Color(0xFF141414),
+                      fontFamily: 'Noto Sans',
+                    ),
+                  ),
+                  Text(
+                    history.categoryId ?? '',
                     style: const TextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.w400,
                       color: Color(0xFF737373),
+                      fontFamily: 'Noto Sans',
                     ),
                   ),
-                Text(
-                  dateFormat.format(history.date),
-                  style: const TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w400,
-                    color: Color(0xFF737373),
-                  ),
-                ),
-              ],
-            ),
+                ],
+              ),
+            ],
           ),
           Text(
-            '${isIncome ? '+' : '-'}${numberFormat.format(history.amount)}원',
+            '${isIncome ? '+' : '-'}₩${numberFormat.format(history.amount)}',
             style: TextStyle(
               fontSize: 16,
               fontWeight: FontWeight.w600,
               color: isIncome ? Colors.green : Colors.red,
+              fontFamily: 'Noto Sans',
             ),
           ),
         ],
@@ -468,7 +563,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
           Expanded(
             child: ElevatedButton.icon(
               onPressed: () {
-                // 지출 추가 화면으로 이동
+                context.go(Routes.addExpense);
               },
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.red,
@@ -493,4 +588,74 @@ class _HistoryScreenState extends State<HistoryScreen> {
     );
   }
 
+  /// 카테고리에 따른 아이콘 반환
+  IconData _getCategoryIcon(String categoryId, bool isIncome) {
+    if (isIncome) {
+      // 수입 카테고리별 아이콘
+      switch (categoryId.toLowerCase()) {
+        case '급여':
+        case 'salary':
+          return Icons.work_outline;
+        case '부업':
+        case '사업':
+        case 'business':
+          return Icons.business_center_outlined;
+        case '투자':
+        case 'investment':
+          return Icons.trending_up;
+        case '용돈':
+        case '선물':
+        case 'gift':
+          return Icons.card_giftcard_outlined;
+        case '보너스':
+        case 'bonus':
+          return Icons.emoji_events_outlined;
+        case '로열티':
+        case 'royalty':
+          return Icons.copyright_outlined;
+        case '기타':
+        case 'other':
+          return Icons.more_horiz;
+        default:
+          return Icons.add_circle;
+      }
+    } else {
+      // 지출 카테고리별 아이콘
+      switch (categoryId.toLowerCase()) {
+        case '식비':
+        case '음식':
+        case 'food':
+          return Icons.restaurant_outlined;
+        case '교통':
+        case 'transport':
+          return Icons.directions_car_outlined;
+        case '쇼핑':
+        case 'shopping':
+          return Icons.shopping_bag_outlined;
+        case '주거':
+        case '집':
+        case 'housing':
+          return Icons.home_outlined;
+        case '의료':
+        case '건강':
+        case 'medical':
+          return Icons.medical_services_outlined;
+        case '교육':
+        case 'education':
+          return Icons.school_outlined;
+        case '문화':
+        case '여가':
+        case 'entertainment':
+          return Icons.movie_outlined;
+        case '통신':
+        case 'communication':
+          return Icons.phone_outlined;
+        case '기타':
+        case 'other':
+          return Icons.more_horiz;
+        default:
+          return Icons.remove_circle;
+      }
+    }
+  }
 }

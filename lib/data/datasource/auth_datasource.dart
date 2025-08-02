@@ -1,3 +1,4 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import '../dto/user_model_dto.dart';
 
 /// Auth DataSource 인터페이스
@@ -25,6 +26,9 @@ abstract class AuthDataSource {
   });
 
   Future<void> deleteAccount(String password);
+
+  // Firebase Auth 사용자 정보
+  Future<User?> getCurrentUser();
 
   // Firestore 사용자 정보 관리
   Future<void> saveUser(UserModelDto user);

@@ -1,6 +1,6 @@
 import 'package:freezed_annotation/freezed_annotation.dart';
 
-part 'signin_state.freezed.dart';
+part 'state.freezed.dart';
 
 /// SignIn 화면 상태 (Freezed 3.0 방식)
 @freezed

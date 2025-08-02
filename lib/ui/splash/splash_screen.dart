@@ -31,7 +31,7 @@ class _SplashScreenState extends State<SplashScreen> {
       print('❌ Splash Error: $e');
       // 에러가 발생해도 로그인 화면으로 이동 시도
       if (mounted) {
-        context.go('/sign_in');
+        context.go(Routes.signIn);
       }
     }
   }

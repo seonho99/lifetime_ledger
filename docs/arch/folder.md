@@ -34,7 +34,7 @@ lib/
 ├── data/                            # Data Layer (Clean Architecture)
 │   ├── datasource/                  # DataSource 구현체들
 │   │   ├── history_datasource.dart
-│   │   └── history_datasource_impl.dart (Firebase 구현체)
+│   │   └── history_firebase_datasource_impl.dart (Firebase 구현체)
 │   ├── dto/                         # DTO 모델들
 │   │   ├── history_dto.dart
 │   │   └── history_dto.g.dart       # json_serializable 생성 파일
@@ -156,7 +156,7 @@ DataSource (data/datasource/)
 ```
 # DataSource
 history_datasource.dart                  # DataSource 인터페이스
-history_datasource_impl.dart             # Firebase DataSource 구현체
+history_firebase_datasource_impl.dart    # Firebase DataSource 구현체
 
 # DTO
 history_dto.dart                         # DTO 모델
@@ -274,9 +274,9 @@ lib/
 ├── data/
 │   ├── datasource/
 │   │   ├── history_datasource.dart
-│   │   ├── history_datasource_impl.dart
+│   │   ├── history_firebase_datasource_impl.dart
 │   │   ├── category_datasource.dart          # 새로 추가
-│   │   └── category_datasource_impl.dart     # 새로 추가
+│   │   └── category_firebase_datasource_impl.dart     # 새로 추가
 │   └── ...
 ├── domain/
 │   ├── model/

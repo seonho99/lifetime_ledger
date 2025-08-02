@@ -3,22 +3,16 @@ import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/route/routes.dart';
-import '../../../domain/usecase/signin_usecase.dart';
 import 'signin_viewmodel.dart';
 
-/// SignIn Screen (Provider 설정 + UI)
+/// SignIn Screen - Global Provider 사용
 class SignInScreen extends StatelessWidget {
   const SignInScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
-    // main.dart에서 전역 Provider로 설정된 UseCase를 주입받아 ViewModel 생성
-    return ChangeNotifierProvider(
-      create: (context) => SignInViewModel(
-        signInUseCase: context.read<SignInUseCase>(),
-      ),
-      child: const SignInView(),
-    );
+    // main.dart에서 전역 Provider로 설정된 ViewModel 사용
+    return const SignInView();
   }
 }
 

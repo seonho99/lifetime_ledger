@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../core/result/result.dart';
 import '../../../core/errors/failure.dart';
 import '../../../domain/usecase/signin_usecase.dart';
-import 'signin_state.dart';
+import 'state.dart';
 
 /// SignIn ViewModel (ChangeNotifier 기반)
 class SignInViewModel extends ChangeNotifier {

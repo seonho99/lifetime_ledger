@@ -2,22 +2,16 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
-import '../../../domain/usecase/change_password_usecase.dart';
 import 'change_password_viewmodel.dart';
 
-/// ChangePassword Screen (Provider 설정 + UI)
+/// ChangePassword Screen - Global Provider 사용
 class ChangePasswordScreen extends StatelessWidget {
   const ChangePasswordScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
-    // main.dart에서 전역 Provider로 설정된 UseCase를 주입받아 ViewModel 생성
-    return ChangeNotifierProvider(
-      create: (context) => ChangePasswordViewModel(
-        changePasswordUseCase: context.read<ChangePasswordUseCase>(),
-      ),
-      child: const ChangePasswordView(),
-    );
+    // main.dart에서 전역 Provider로 설정된 ViewModel 사용
+    return const ChangePasswordView();
   }
 }
 

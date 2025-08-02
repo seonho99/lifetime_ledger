@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../core/result/result.dart';
 import '../../../core/errors/failure.dart';
 import '../../../domain/usecase/change_password_usecase.dart';
-import 'change_password_state.dart';
+import 'state.dart';
 
 /// ChangePassword ViewModel (ChangeNotifier 기반)
 class ChangePasswordViewModel extends ChangeNotifier {

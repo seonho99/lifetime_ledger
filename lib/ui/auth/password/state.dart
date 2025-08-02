@@ -1,6 +1,6 @@
 import 'package:freezed_annotation/freezed_annotation.dart';
 
-part 'change_password_state.freezed.dart';
+part 'state.freezed.dart';
 
 /// 비밀번호 변경 화면의 상태 관리
 @freezed
